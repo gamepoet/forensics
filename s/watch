@@ -1,0 +1,4 @@
+#!/bin/bash
+cd `dirname "$0"`/..
+cd build
+ls ../src/* ../spec/* | entr -s 'make && ./test_forensics'
