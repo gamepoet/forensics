@@ -1,4 +1,5 @@
 #include "forensics.h"
+#include "backtrace.h"
 #include <cstdarg>
 #include <cstdlib>
 #include <thread>
@@ -7,6 +8,7 @@
 #define DEFAULT_MAX_FORMATTED_MESSAGE_SIZE_BYTES (1 * 1024)
 #define DEFAULT_MAX_ATTRIBUTE_COUNT 128
 #define DEFAULT_ATTRIBUTE_BUF_SIZE_BYTES (4 * 1024)
+#define DEFAULT_MAX_BACKTRACE_COUNT 256
 
 struct context_buffer_t {
   int count;
@@ -24,6 +26,8 @@ static char** s_attribute_values;
 static int s_attribute_count;
 static char* s_attribute_buf;
 static int s_attribute_buf_used;
+
+static void** s_backtrace_buf;
 
 static std::mutex s_report_mutex;
 static char* s_report_formatted_msg;
@@ -102,6 +106,7 @@ void forensics_config_init(forensics_config_t* config) {
     config->max_formatted_message_size_bytes = DEFAULT_MAX_FORMATTED_MESSAGE_SIZE_BYTES;
     config->max_attribute_count = DEFAULT_MAX_ATTRIBUTE_COUNT;
     config->attribute_buf_size_bytes = DEFAULT_ATTRIBUTE_BUF_SIZE_BYTES;
+    config->max_backtrace_count = DEFAULT_MAX_BACKTRACE_COUNT;
     config->report_handler = &forensics_default_report_handler;
   }
 }
@@ -121,9 +126,13 @@ void forensics_init(const forensics_config_t* config) {
   s_attribute_buf = (char*)malloc(s_config.attribute_buf_size_bytes);
   s_attribute_count = 0;
   s_attribute_buf_used = 0;
+
+  s_backtrace_buf = (void**)malloc(s_config.max_backtrace_count * sizeof(void*));
 }
 
 void forensics_shutdown() {
+  free(s_backtrace_buf);
+
   free(s_attribute_buf);
   free(s_attribute_values);
   free(s_attribute_keys);
@@ -241,8 +250,13 @@ void forensics_report_assert_failure(
   // TODO: gather the breadcrumbs
 
   // TODO: capture the backtrace
-  report.backtrace = nullptr;
-  report.backtrace_count = 0;
+  report.backtrace_count = forensics_private_backtrace(s_backtrace_buf, s_config.max_backtrace_count);
+  if (report.backtrace_count > 0) {
+    report.backtrace = s_backtrace_buf;
+  }
+  else {
+    report.backtrace = nullptr;
+  }
 
   // call the report handler
   s_config.report_handler(&report);

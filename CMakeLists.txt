@@ -3,9 +3,17 @@ project(forensics)
 
 set(
   SRCS
+  src/backtrace.h
   src/forensics.h
   src/forensics.cpp
 )
+if(APPLE)
+  set(
+    SRCS
+    ${SRCS}
+    src/backtrace_osx.cpp
+  )
+endif()
 
 add_library(forensics STATIC ${SRCS})
 target_compile_features(forensics PRIVATE cxx_std_11 cxx_thread_local)

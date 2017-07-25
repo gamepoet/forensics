@@ -35,6 +35,7 @@ struct forensics_config_t {
   unsigned int max_formatted_message_size_bytes;
   unsigned int max_attribute_count;
   unsigned int attribute_buf_size_bytes;
+  unsigned int max_backtrace_count;
   forensics_report_handler_t report_handler;
 };
 

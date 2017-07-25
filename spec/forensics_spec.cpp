@@ -79,11 +79,13 @@ CASE("basic report handling") {
     WHEN("there is no formatted message") {
       auto handler = [=](const forensics_report_t* report) {
         EXPECT(ends_with(report->file, "forensics_spec.cpp"));
-        EXPECT(report->line == 88);
+        EXPECT(report->line == 90);
         EXPECT(0 == strcmp(report->expression, "false"));
         EXPECT(report->format[0] == 0);
         EXPECT(report->formatted[0] == 0);
         EXPECT(report->fatal == true);
+        EXPECT(report->backtrace_count > 0);
+        EXPECT(report->backtrace != nullptr);
       };
       with_handler(handler, []() { FORENSICS_ASSERT(false); });
     }
@@ -91,11 +93,13 @@ CASE("basic report handling") {
     WHEN("there is a formatted message") {
       auto handler = [=](const forensics_report_t* report) {
         EXPECT(ends_with(report->file, "forensics_spec.cpp"));
-        EXPECT(report->line == 100);
+        EXPECT(report->line == 104);
         EXPECT(0 == strcmp(report->expression, "false"));
         EXPECT(!strcmp(report->format, "failed num=%d"));
         EXPECT(!strcmp(report->formatted, "failed num=2"));
         EXPECT(report->fatal == true);
+        EXPECT(report->backtrace_count > 0);
+        EXPECT(report->backtrace != nullptr);
       };
       with_handler(handler, []() { FORENSICS_ASSERTF(false, "failed num=%d", 2); });
     }
@@ -183,5 +187,13 @@ CASE("context") {
 }
 
 int main(int argc, char** argv) {
-  return lest::run(specs, argc, argv);
+  int failed_count = lest::run(specs, argc, argv);
+  if (failed_count == 0) {
+    printf("All tests pass!\n");
+  }
+  else {
+    printf("%d failures\n", failed_count);
+  }
+
+  return failed_count;
 }
