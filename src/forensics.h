@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 struct forensics_report_t {
+  const char* id;
   const char* file;
   int line;
   const char* func;
@@ -31,6 +32,7 @@ typedef void (*forensics_report_handler_t)(const struct forensics_report_t* repo
 
 struct forensics_config_t {
   bool fatal_should_halt;
+  unsigned int max_id_size_bytes;
   unsigned int max_context_depth;
   unsigned int max_formatted_message_size_bytes;
   unsigned int max_attribute_count;

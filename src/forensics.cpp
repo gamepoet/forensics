@@ -9,6 +9,7 @@
 #define DEFAULT_MAX_ATTRIBUTE_COUNT 128
 #define DEFAULT_ATTRIBUTE_BUF_SIZE_BYTES (4 * 1024)
 #define DEFAULT_MAX_BACKTRACE_COUNT 256
+#define DEFAULT_MAX_ID_SIZE_BYTES 512
 
 struct context_buffer_t {
   int count;
@@ -30,6 +31,7 @@ static int s_attribute_buf_used;
 static void** s_backtrace_buf;
 
 static std::mutex s_report_mutex;
+static char* s_report_id;
 static char* s_report_formatted_msg;
 
 static void panic() {
@@ -102,6 +104,7 @@ static void attribute_append(const char* key, const char* value) {
 void forensics_config_init(forensics_config_t* config) {
   if (config != nullptr) {
     config->fatal_should_halt = true;
+    config->max_id_size_bytes = DEFAULT_MAX_ID_SIZE_BYTES;
     config->max_context_depth = DEFAULT_MAX_CONTEXT_DEPTH;
     config->max_formatted_message_size_bytes = DEFAULT_MAX_FORMATTED_MESSAGE_SIZE_BYTES;
     config->max_attribute_count = DEFAULT_MAX_ATTRIBUTE_COUNT;
@@ -119,6 +122,7 @@ void forensics_init(const forensics_config_t* config) {
     forensics_config_init(&s_config);
   }
 
+  s_report_id = (char*)malloc(s_config.max_id_size_bytes);
   s_report_formatted_msg = (char*)malloc(s_config.max_formatted_message_size_bytes);
 
   s_attribute_keys = (char**)malloc(s_config.max_attribute_count * sizeof(char*));
@@ -144,6 +148,8 @@ void forensics_shutdown() {
 
   free(s_report_formatted_msg);
   s_report_formatted_msg = nullptr;
+  free(s_report_id);
+  s_report_id = nullptr;
 }
 
 void forensics_context_begin(const char* name) {
@@ -206,7 +212,22 @@ void forensics_set_attribute(const char* key, const char* value) {
 }
 
 void forensics_default_report_handler(const struct forensics_report_t* report) {
-  // TODO: implement me
+  const char* context = "<none>";
+  if (report->context_count > 0) {
+    context = report->context_stack[report->context_count - 1];
+  }
+
+  fprintf(stderr, "ASSERTION FAILED\n");
+  fprintf(stderr, "expression: %s\n", report->expression);
+  fprintf(stderr, "context: %s\n", context);
+  fprintf(stderr, "file: %s\n", report->file);
+  fprintf(stderr, "line: %d\n", report->line);
+  fprintf(stderr, "function: %s\n", report->func);
+  fprintf(stderr, "id: %s\n", report->id);
+  fprintf(stderr, "backtrace:\n");
+  for (int index = 0; index < report->backtrace_count; ++index) {
+    fprintf(stderr, "  %p\n", report->backtrace[index]);
+  }
 }
 
 void forensics_report_assert_failure(
@@ -249,7 +270,7 @@ void forensics_report_assert_failure(
 
   // TODO: gather the breadcrumbs
 
-  // TODO: capture the backtrace
+  // capture the backtrace
   report.backtrace_count = forensics_private_backtrace(s_backtrace_buf, s_config.max_backtrace_count);
   if (report.backtrace_count > 0) {
     report.backtrace = s_backtrace_buf;
@@ -257,6 +278,22 @@ void forensics_report_assert_failure(
   else {
     report.backtrace = nullptr;
   }
+
+  // generate the report id
+  const char* context = report.context_count > 0 ? report.context_stack[report.context_count - 1] : "<none>";
+  const char* file_basename = strrchr(file, '/');
+  if (file_basename == nullptr) {
+    file_basename = strrchr(file, '\\');
+  }
+  if (file_basename == nullptr) {
+    file_basename = file;
+  }
+  if (file_basename != file) {
+    file_basename += 1;
+  }
+  snprintf(s_report_id, s_config.max_id_size_bytes, "%s-%s-%s-%s", context, file_basename, func, format);
+  s_report_id[s_config.max_id_size_bytes - 1] = 0;
+  report.id = s_report_id;
 
   // call the report handler
   s_config.report_handler(&report);
