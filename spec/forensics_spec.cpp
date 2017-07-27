@@ -72,13 +72,19 @@ static bool has_attribute_value(const forensics_report_t* report, const char* ke
 
 static lest::tests specs;
 
+#ifdef WIN32
+#define REPORT_ID(context, file, msg) context ## "-" ## file ## "-operator ()-" ## msg
+#else
+#define REPORT_ID(context, file, msg) context ## "-" ## file ## "-operator()-" ## msg
+#endif
+
 CASE("basic report handling") {
   GIVEN("setup") {
     init_t init(nullptr);
 
     WHEN("there is no formatted message") {
       auto handler = [=](const forensics_report_t* report) {
-        EXPECT(!strcmp(report->id, "<none>-forensics_spec.cpp-operator()-"));
+        EXPECT(!strcmp(report->id, REPORT_ID("<none>", "forensics_spec.cpp", "")));
         EXPECT(ends_with(report->file, "forensics_spec.cpp"));
         EXPECT(0 == strcmp(report->expression, "false"));
         EXPECT(report->format[0] == 0);
@@ -93,7 +99,7 @@ CASE("basic report handling") {
 
     WHEN("there is a formatted message") {
       auto handler = [=](const forensics_report_t* report) {
-        EXPECT(!strcmp(report->id, "<none>-forensics_spec.cpp-operator()-failed num=%d"));
+        EXPECT(!strcmp(report->id, REPORT_ID("<none>", "forensics_spec.cpp", "failed num=%d")));
         EXPECT(ends_with(report->file, "forensics_spec.cpp"));
         EXPECT(0 == strcmp(report->expression, "false"));
         EXPECT(!strcmp(report->format, "failed num=%d"));
@@ -156,7 +162,7 @@ CASE("context") {
       auto handler = [=](const forensics_report_t* report) {
         EXPECT(report->context_count == 0);
         EXPECT(report->context_stack == nullptr);
-        EXPECT(!strcmp(report->id, "<none>-forensics_spec.cpp-operator()-"));
+        EXPECT(!strcmp(report->id, REPORT_ID("<none>", "forensics_spec.cpp", "")));
       };
       with_handler(handler, []() { FORENSICS_ASSERT(false); });
     }
@@ -165,7 +171,7 @@ CASE("context") {
       auto handler = [=](const forensics_report_t* report) {
         EXPECT(report->context_count == 1);
         EXPECT(!strcmp(report->context_stack[0], "global"));
-        EXPECT(!strcmp(report->id, "global-forensics_spec.cpp-operator()-"));
+        EXPECT(!strcmp(report->id, REPORT_ID("global", "forensics_spec.cpp", "")));
       };
       with_handler(handler, []() {
         FORENSICS_CONTEXT("global");
@@ -179,7 +185,7 @@ CASE("context") {
         EXPECT(!strcmp(report->context_stack[0], "global"));
         EXPECT(!strcmp(report->context_stack[1], "local"));
         EXPECT(!strcmp(report->context_stack[2], "personal"));
-        EXPECT(!strcmp(report->id, "personal-forensics_spec.cpp-operator()-"));
+        EXPECT(!strcmp(report->id, REPORT_ID("personal", "forensics_spec.cpp", "")));
       };
       with_handler(handler, []() {
         FORENSICS_CONTEXT("global");

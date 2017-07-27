@@ -14,6 +14,18 @@ if(APPLE)
     src/backtrace_osx.cpp
   )
 endif()
+if(WIN32)
+  set(
+    SRCS
+    ${SRCS}
+    src/backtrace_windows.cpp
+  )
+endif()
+
+# TODO: max out the warning settings for the compilers (why isn't there a generic way to do this?)
+#if(MSVC)
+#  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /WX")
+#endif()
 
 add_library(forensics STATIC ${SRCS})
 target_compile_features(forensics PRIVATE cxx_std_11 cxx_thread_local)

@@ -3,6 +3,7 @@
 #include <cstdarg>
 #include <cstdlib>
 #include <thread>
+#include <mutex>
 
 #define DEFAULT_MAX_CONTEXT_DEPTH 128
 #define DEFAULT_MAX_FORMATTED_MESSAGE_SIZE_BYTES (1 * 1024)
@@ -55,7 +56,6 @@ static void attribute_clear(int index) {
   const int size_bytes = key_size_bytes + value_size_bytes;
 
   // fill in the hole in the buffer
-  const char* buf_end = s_attribute_buf + s_config.attribute_buf_size_bytes;
   const intptr_t key_offset = (intptr_t)(key - s_attribute_buf);
   const intptr_t bytes_to_copy = s_attribute_buf_used - key_offset - size_bytes;
   memcpy(key, key + size_bytes, bytes_to_copy);
@@ -70,7 +70,7 @@ static void attribute_clear(int index) {
 }
 
 static void attribute_append(const char* key, const char* value) {
-  FORENSICS_ASSERTF(s_attribute_count < s_config.max_attribute_count,
+  FORENSICS_ASSERTF(s_attribute_count < (int)s_config.max_attribute_count,
                     "Cannot set attribute because the attribute key array is full. Try increasing the size of "
                     "max_attribute_count. key=%s value=%s",
                     key,
