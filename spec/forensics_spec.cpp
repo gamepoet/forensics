@@ -73,9 +73,9 @@ static bool has_attribute_value(const forensics_report_t* report, const char* ke
 static lest::tests specs;
 
 #ifdef WIN32
-#define REPORT_ID(context, file, msg) context ## "-" ## file ## "-operator ()-" ## msg
+#define REPORT_ID(context, file, msg) context##"-"##file##"-operator ()-"##msg
 #else
-#define REPORT_ID(context, file, msg) context ## "-" ## file ## "-operator()-" ## msg
+#define REPORT_ID(context, file, msg) context "-" file "-operator()-" msg
 #endif
 
 CASE("basic report handling") {
