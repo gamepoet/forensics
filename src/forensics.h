@@ -5,6 +5,14 @@
 extern "C" {
 #endif
 
+struct forensics_breadcrumb_t {
+  const char* name;
+  const char** meta_keys;
+  const char** meta_values;
+  int meta_count;
+  int count;
+};
+
 struct forensics_report_t {
   const char* id;
   const char* file;
@@ -15,7 +23,8 @@ struct forensics_report_t {
   const char* formatted;
   bool fatal;
 
-  // TODO: breadcrumbs
+  const forensics_breadcrumb_t* breadcrumbs;
+  int breadcrumb_count;
 
   const char* const* context_stack;
   int context_count;
@@ -38,6 +47,8 @@ struct forensics_config_t {
   unsigned int max_attribute_count;
   unsigned int attribute_buf_size_bytes;
   unsigned int max_backtrace_count;
+  unsigned int max_breadcrumb_count;
+  unsigned int breadcrumb_buf_size_bytes;
   forensics_report_handler_t report_handler;
 };
 

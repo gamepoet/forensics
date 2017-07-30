@@ -2,8 +2,8 @@
 #include "backtrace.h"
 #include <cstdarg>
 #include <cstdlib>
-#include <thread>
 #include <mutex>
+#include <thread>
 
 #define DEFAULT_MAX_CONTEXT_DEPTH 128
 #define DEFAULT_MAX_FORMATTED_MESSAGE_SIZE_BYTES (1 * 1024)
@@ -11,6 +11,8 @@
 #define DEFAULT_ATTRIBUTE_BUF_SIZE_BYTES (4 * 1024)
 #define DEFAULT_MAX_BACKTRACE_COUNT 256
 #define DEFAULT_MAX_ID_SIZE_BYTES 512
+#define DEFAULT_MAX_BREADCRUMB_COUNT 128
+#define DEFAULT_BREADCRUMB_BUF_SIZE_BYTES (4 * 1024)
 
 struct context_buffer_t {
   int count;
@@ -19,9 +21,20 @@ struct context_buffer_t {
   bool initialized;
   const char** stack;
 };
+struct breadcrumb_t {
+  forensics_breadcrumb_t crumb;
+  int buf_size;
+};
 
 static forensics_config_t s_config;
 thread_local static context_buffer_t s_tls_context_buf;
+
+static breadcrumb_t* s_breadcrumbs;
+static int s_breadcrumbs_index_next;
+static int s_breadcrumbs_count;
+static char* s_breadcrumbs_buf;
+static int s_breadcrumbs_buf_read_index;
+static int s_breadcrumbs_buf_write_index;
 
 static char** s_attribute_keys;
 static char** s_attribute_values;
@@ -34,6 +47,7 @@ static void** s_backtrace_buf;
 static std::mutex s_report_mutex;
 static char* s_report_id;
 static char* s_report_formatted_msg;
+static forensics_breadcrumb_t* s_report_breadcrumbs;
 
 static void panic() {
   exit(EXIT_FAILURE);
@@ -101,6 +115,52 @@ static void attribute_append(const char* key, const char* value) {
   ++s_attribute_count;
 }
 
+static char* breadcrumb_buf_alloc(int size_bytes) {
+  int write_index = s_breadcrumbs_buf_write_index;
+  const int read_index = s_breadcrumbs_buf_read_index;
+
+  // check if the write head will pass the read head
+  if ((write_index < read_index) && (write_index + size_bytes > read_index)) {
+    return nullptr;
+  }
+
+  // wrap around if needed
+  if (write_index + size_bytes > s_config.breadcrumb_buf_size_bytes) {
+    write_index = 0;
+
+    // check again if the write head will pass the read head
+    if (size_bytes > read_index) {
+      return nullptr;
+    }
+  }
+
+  s_breadcrumbs_buf_write_index = write_index + size_bytes;
+  return s_breadcrumbs_buf + write_index;
+}
+
+static void breadcrumb_deque() {
+  const int first_index =
+      (s_breadcrumbs_index_next + s_config.max_breadcrumb_count - s_breadcrumbs_count) % s_config.max_breadcrumb_count;
+  breadcrumb_t* breadcrumb = s_breadcrumbs + first_index;
+
+  // free the ring buffer space
+  s_breadcrumbs_buf_read_index += breadcrumb->buf_size;
+  if (s_breadcrumbs_buf_read_index >= s_config.breadcrumb_buf_size_bytes) {
+    s_breadcrumbs_buf_read_index = 0;
+  }
+
+  // clear out the breadcrumb struct
+  breadcrumb->crumb.name = nullptr;
+  breadcrumb->crumb.meta_keys = nullptr;
+  breadcrumb->crumb.meta_values = nullptr;
+  breadcrumb->crumb.meta_count = 0;
+  breadcrumb->crumb.count = 0;
+  breadcrumb->buf_size = 0;
+
+  // forget about the breadcrumb
+  --s_breadcrumbs_count;
+}
+
 void forensics_config_init(forensics_config_t* config) {
   if (config != nullptr) {
     config->fatal_should_halt = true;
@@ -110,6 +170,8 @@ void forensics_config_init(forensics_config_t* config) {
     config->max_attribute_count = DEFAULT_MAX_ATTRIBUTE_COUNT;
     config->attribute_buf_size_bytes = DEFAULT_ATTRIBUTE_BUF_SIZE_BYTES;
     config->max_backtrace_count = DEFAULT_MAX_BACKTRACE_COUNT;
+    config->max_breadcrumb_count = DEFAULT_MAX_BREADCRUMB_COUNT;
+    config->breadcrumb_buf_size_bytes = DEFAULT_BREADCRUMB_BUF_SIZE_BYTES;
     config->report_handler = &forensics_default_report_handler;
   }
 }
@@ -124,6 +186,8 @@ void forensics_init(const forensics_config_t* config) {
 
   s_report_id = (char*)malloc(s_config.max_id_size_bytes);
   s_report_formatted_msg = (char*)malloc(s_config.max_formatted_message_size_bytes);
+  s_report_breadcrumbs =
+      (forensics_breadcrumb_t*)malloc(s_config.max_breadcrumb_count * sizeof(forensics_breadcrumb_t));
 
   s_attribute_keys = (char**)malloc(s_config.max_attribute_count * sizeof(char*));
   s_attribute_values = (char**)malloc(s_config.max_attribute_count * sizeof(char*));
@@ -131,11 +195,27 @@ void forensics_init(const forensics_config_t* config) {
   s_attribute_count = 0;
   s_attribute_buf_used = 0;
 
+  s_breadcrumbs = (breadcrumb_t*)malloc(s_config.max_breadcrumb_count * sizeof(breadcrumb_t));
+  s_breadcrumbs_buf = (char*)malloc(s_config.breadcrumb_buf_size_bytes);
+  s_breadcrumbs_count = 0;
+  s_breadcrumbs_index_next = 0;
+  s_breadcrumbs_buf_read_index = 0;
+  s_breadcrumbs_buf_write_index = 0;
+
   s_backtrace_buf = (void**)malloc(s_config.max_backtrace_count * sizeof(void*));
 }
 
 void forensics_shutdown() {
   free(s_backtrace_buf);
+
+  free(s_breadcrumbs_buf);
+  free(s_breadcrumbs);
+  s_breadcrumbs_buf = nullptr;
+  s_breadcrumbs = nullptr;
+  s_breadcrumbs_count = 0;
+  s_breadcrumbs_index_next = 0;
+  s_breadcrumbs_buf_read_index = 0;
+  s_breadcrumbs_buf_write_index = 0;
 
   free(s_attribute_buf);
   free(s_attribute_values);
@@ -146,6 +226,8 @@ void forensics_shutdown() {
   s_attribute_count = 0;
   s_attribute_buf_used = 0;
 
+  free(s_report_breadcrumbs);
+  s_report_breadcrumbs = nullptr;
   free(s_report_formatted_msg);
   s_report_formatted_msg = nullptr;
   free(s_report_id);
@@ -193,8 +275,119 @@ void forensics_context_end() {
   --ctx_buf->count;
 }
 
+void forensics_add_breadcrumb(const char* name, const char** meta_keys, const char** meta_values, int meta_count) {
+  // allow multi-threaded access to this function and protect against the crash handler
+  std::lock_guard<std::mutex> lock(s_report_mutex);
+
+  // bail if configured to be disabled
+  if (s_config.max_breadcrumb_count == 0) {
+    return;
+  }
+
+  // compare against the last breadcrumb to see if we can just denote repetetion
+  if (s_breadcrumbs_count > 0) {
+    const int last_index =
+        (s_breadcrumbs_index_next + s_config.max_breadcrumb_count - 1) % s_config.max_breadcrumb_count;
+    forensics_breadcrumb_t* prev = &s_breadcrumbs[last_index].crumb;
+    if (prev->meta_count == meta_count) {
+      if (!strcmp(prev->name, name)) {
+        bool match = true;
+        for (int index = 0; index < meta_count; ++index) {
+          if (0 != strcmp(prev->meta_keys[index], meta_keys[index])) {
+            match = false;
+            break;
+          }
+          if (0 != strcmp(prev->meta_values[index], meta_values[index])) {
+            match = false;
+            break;
+          }
+        }
+        if (match == true) {
+          // previous breadcrumb was identical; record the repetetion and bail
+          ++prev->count;
+          return;
+        }
+      }
+    }
+  }
+
+  const int name_size_bytes = strlen(name) + 1;
+
+  // compute the required space in the ringbuffer
+  int required_size = 0;
+  required_size += sizeof(char**) * meta_count * 2;
+  required_size += name_size_bytes;
+  for (int index = 0; index < meta_count; ++index) {
+    required_size += strlen(meta_keys[index]) + 1;
+    required_size += strlen(meta_values[index]) + 1;
+  }
+
+  // remove a breadcrumb if there are too many
+  if (s_breadcrumbs_count >= s_config.max_breadcrumb_count) {
+    breadcrumb_deque();
+  }
+
+  // alloc space from the ring buffer
+  char* alloc = breadcrumb_buf_alloc(required_size);
+  if (alloc == nullptr) {
+    // bail in the pathalogical case where it can't fit
+    if (required_size > s_config.breadcrumb_buf_size_bytes) {
+      return;
+    }
+
+    // remove a breadcrumb to make room
+    while (alloc == nullptr) {
+      breadcrumb_deque();
+      alloc = breadcrumb_buf_alloc(required_size);
+    }
+  }
+
+  // copy the data into the ring buffer
+  char** out_meta_keys = (char**)alloc;
+  char** out_meta_values = (char**)(out_meta_keys + sizeof(char**) * meta_count);
+  char* out_name = (char*)(out_meta_values + sizeof(char**) * meta_count);
+  char* ptr = out_name + name_size_bytes;
+  memmove(out_name, name, name_size_bytes);
+  for (int index = 0; index < meta_count; ++index) {
+    const int key_size_bytes = strlen(meta_keys[index]) + 1;
+    const int value_size_bytes = strlen(meta_values[index]) + 1;
+    char* out_key = ptr;
+    char* out_value = out_key + key_size_bytes;
+    ptr = out_value + value_size_bytes;
+
+    memmove(out_key, meta_keys[index], key_size_bytes);
+    memmove(out_value, meta_values[index], value_size_bytes);
+    out_meta_keys[index] = out_key;
+    out_meta_values[index] = out_value;
+  }
+
+  breadcrumb_t* breadcrumb = s_breadcrumbs + s_breadcrumbs_index_next;
+  breadcrumb->buf_size = required_size;
+  forensics_breadcrumb_t* crumb = &breadcrumb->crumb;
+  crumb->name = out_name;
+  if (meta_count > 0) {
+    crumb->meta_keys = (const char**)out_meta_keys;
+    crumb->meta_values = (const char**)out_meta_values;
+  }
+  else {
+    crumb->meta_keys = nullptr;
+    crumb->meta_values = nullptr;
+  }
+  crumb->meta_count = meta_count;
+  crumb->count = 1;
+
+  s_breadcrumbs_index_next = (s_breadcrumbs_index_next + 1) % s_config.max_breadcrumb_count;
+  ++s_breadcrumbs_count;
+}
+
 void forensics_set_attribute(const char* key, const char* value) {
-  // TODO: grab a mutex here
+  // allow multi-threaded access to this function and protect against the crash handler
+  std::lock_guard<std::mutex> lock(s_report_mutex);
+
+  // bail if configured to be disabled
+  if (s_config.max_attribute_count == 0) {
+    return;
+  }
 
   if (value == nullptr) {
     const int index = attribute_find(key);
@@ -253,11 +446,12 @@ void forensics_report_assert_failure(
   report.formatted = s_report_formatted_msg;
   report.fatal = fatal;
 
+  // grab the context stack
   struct context_buffer_t* ctx_buf = &s_tls_context_buf;
   report.context_stack = ctx_buf->stack;
   report.context_count = ctx_buf->count;
 
-  // TODO: gather the attributes
+  // gather the attributes
   report.attribute_count = s_attribute_count;
   if (s_attribute_count > 0) {
     report.attribute_keys = s_attribute_keys;
@@ -268,7 +462,19 @@ void forensics_report_assert_failure(
     report.attribute_values = nullptr;
   }
 
-  // TODO: gather the breadcrumbs
+  // gather the breadcrumbs
+  report.breadcrumb_count = s_breadcrumbs_count;
+  if (s_breadcrumbs_count > 0) {
+    report.breadcrumbs = s_report_breadcrumbs;
+    for (int index = 0; index < s_breadcrumbs_count; ++index) {
+      const int src_index = (s_breadcrumbs_index_next + s_config.max_breadcrumb_count - s_breadcrumbs_count + index) %
+                            s_config.max_breadcrumb_count;
+      s_report_breadcrumbs[index] = s_breadcrumbs[src_index].crumb;
+    }
+  }
+  else {
+    report.breadcrumbs = nullptr;
+  }
 
   // capture the backtrace
   report.backtrace_count = forensics_private_backtrace(s_backtrace_buf, s_config.max_backtrace_count);

@@ -197,6 +197,290 @@ CASE("context") {
   }
 }
 
+CASE("breadcrumbs") {
+  GIVEN("setup") {
+    init_t init(nullptr);
+
+    WHEN("there are no breadcrumbs") {
+      auto handler = [=](const forensics_report_t* report) {
+        EXPECT(report->breadcrumb_count == 0);
+        EXPECT(report->breadcrumbs == nullptr);
+      };
+      with_handler(handler, []() { FORENSICS_ASSERT(false); });
+    }
+
+    WHEN("there is a single breadcrumb with no meta") {
+      auto handler = [=](const forensics_report_t* report) {
+        EXPECT(report->breadcrumb_count == 1);
+        EXPECT(report->breadcrumbs != nullptr);
+        EXPECT(!strcmp(report->breadcrumbs[0].name, "test"));
+        EXPECT(report->breadcrumbs[0].meta_keys == nullptr);
+        EXPECT(report->breadcrumbs[0].meta_values == nullptr);
+        EXPECT(report->breadcrumbs[0].meta_count == 0);
+        EXPECT(report->breadcrumbs[0].count == 1);
+      };
+      with_handler(handler, []() {
+        forensics_add_breadcrumb("test", nullptr, nullptr, 0);
+        FORENSICS_ASSERT(false);
+      });
+    }
+
+    WHEN("there is a single breadcrumb with 1 meta") {
+      auto handler = [=](const forensics_report_t* report) {
+        EXPECT(report->breadcrumb_count == 1);
+        EXPECT(report->breadcrumbs != nullptr);
+        EXPECT(!strcmp(report->breadcrumbs[0].name, "test"));
+        EXPECT(report->breadcrumbs[0].meta_keys != nullptr);
+        EXPECT(report->breadcrumbs[0].meta_values != nullptr);
+        EXPECT(report->breadcrumbs[0].meta_count == 1);
+        EXPECT(report->breadcrumbs[0].count == 1);
+        EXPECT(!strcmp(report->breadcrumbs[0].meta_keys[0], "env"));
+        EXPECT(!strcmp(report->breadcrumbs[0].meta_values[0], "production"));
+      };
+      with_handler(handler, []() {
+        const char* meta_keys[] = {
+            "env",
+        };
+        const char* meta_values[] = {
+            "production",
+        };
+        forensics_add_breadcrumb("test", meta_keys, meta_values, 1);
+        FORENSICS_ASSERT(false);
+      });
+    }
+
+    WHEN("there is a single breadcrumb with several meta") {
+      auto handler = [=](const forensics_report_t* report) {
+        EXPECT(report->breadcrumb_count == 1);
+        EXPECT(report->breadcrumbs != nullptr);
+        EXPECT(!strcmp(report->breadcrumbs[0].name, "test"));
+        EXPECT(report->breadcrumbs[0].meta_keys != nullptr);
+        EXPECT(report->breadcrumbs[0].meta_values != nullptr);
+        EXPECT(report->breadcrumbs[0].meta_count == 3);
+        EXPECT(report->breadcrumbs[0].count == 1);
+        EXPECT(!strcmp(report->breadcrumbs[0].meta_keys[0], "env"));
+        EXPECT(!strcmp(report->breadcrumbs[0].meta_values[0], "production"));
+        EXPECT(!strcmp(report->breadcrumbs[0].meta_keys[1], "build_id"));
+        EXPECT(!strcmp(report->breadcrumbs[0].meta_values[1], "1.0.7"));
+        EXPECT(!strcmp(report->breadcrumbs[0].meta_keys[2], "debug"));
+        EXPECT(!strcmp(report->breadcrumbs[0].meta_values[2], "false"));
+      };
+      with_handler(handler, []() {
+        const char* meta_keys[] = {
+            "env", "build_id", "debug",
+        };
+        const char* meta_values[] = {
+            "production", "1.0.7", "false",
+        };
+        forensics_add_breadcrumb("test", meta_keys, meta_values, 3);
+        FORENSICS_ASSERT(false);
+      });
+    }
+
+    WHEN("there are multiple breadcrumbs") {
+      auto handler = [=](const forensics_report_t* report) {
+        EXPECT(report->breadcrumb_count == 3);
+        EXPECT(report->breadcrumbs != nullptr);
+        EXPECT(!strcmp(report->breadcrumbs[0].name, "click"));
+        EXPECT(report->breadcrumbs[0].meta_count == 1);
+        EXPECT(report->breadcrumbs[0].count == 1);
+        EXPECT(!strcmp(report->breadcrumbs[0].meta_keys[0], "pos"));
+        EXPECT(!strcmp(report->breadcrumbs[0].meta_values[0], "37, 100"));
+
+        EXPECT(!strcmp(report->breadcrumbs[1].name, "connect"));
+        EXPECT(report->breadcrumbs[1].meta_count == 1);
+        EXPECT(report->breadcrumbs[1].count == 1);
+        EXPECT(!strcmp(report->breadcrumbs[1].meta_keys[0], "endpoint"));
+        EXPECT(!strcmp(report->breadcrumbs[1].meta_values[0], "127.0.0.1:8080"));
+
+        EXPECT(!strcmp(report->breadcrumbs[2].name, "connect"));
+        EXPECT(report->breadcrumbs[2].meta_count == 1);
+        EXPECT(report->breadcrumbs[2].count == 1);
+        EXPECT(!strcmp(report->breadcrumbs[2].meta_keys[0], "endpoint"));
+        EXPECT(!strcmp(report->breadcrumbs[2].meta_values[0], "10.0.0.1:9000"));
+      };
+      with_handler(handler, []() {
+        const char* b1_keys[] = {
+            "pos",
+        };
+        const char* b1_values[] = {
+            "37, 100",
+        };
+        const char* b2_keys[] = {
+            "endpoint",
+        };
+        const char* b2_values[] = {
+            "127.0.0.1:8080",
+        };
+        const char* b3_keys[] = {
+            "endpoint",
+        };
+        const char* b3_values[] = {
+            "10.0.0.1:9000",
+        };
+        forensics_add_breadcrumb("click", b1_keys, b1_values, 1);
+        forensics_add_breadcrumb("connect", b2_keys, b2_values, 1);
+        forensics_add_breadcrumb("connect", b3_keys, b3_values, 1);
+        FORENSICS_ASSERT(false);
+      });
+    }
+
+    WHEN("repeated breadcrumbs are collapsed") {
+      auto handler = [=](const forensics_report_t* report) {
+        EXPECT(report->breadcrumb_count == 1);
+        EXPECT(report->breadcrumbs != nullptr);
+        EXPECT(!strcmp(report->breadcrumbs[0].name, "boot"));
+        EXPECT(report->breadcrumbs[0].meta_count == 1);
+        EXPECT(report->breadcrumbs[0].count == 2);
+        EXPECT(!strcmp(report->breadcrumbs[0].meta_keys[0], "env"));
+        EXPECT(!strcmp(report->breadcrumbs[0].meta_values[0], "production"));
+      };
+      with_handler(handler, []() {
+        const char* b1_keys[] = {
+            "env",
+        };
+        const char* b1_values[] = {
+            "production",
+        };
+        const char* b2_keys[] = {
+            "env",
+        };
+        const char* b2_values[] = {
+            "production",
+        };
+        forensics_add_breadcrumb("boot", b1_keys, b1_values, 1);
+        forensics_add_breadcrumb("boot", b2_keys, b2_values, 1);
+        FORENSICS_ASSERT(false);
+      });
+    }
+
+    WHEN("repeated breadcrumbs are not collapsed if meta differs") {
+      auto handler = [=](const forensics_report_t* report) {
+        EXPECT(report->breadcrumb_count == 2);
+        EXPECT(report->breadcrumbs != nullptr);
+        EXPECT(!strcmp(report->breadcrumbs[0].name, "boot"));
+        EXPECT(report->breadcrumbs[0].meta_count == 1);
+        EXPECT(report->breadcrumbs[0].count == 1);
+        EXPECT(!strcmp(report->breadcrumbs[0].meta_keys[0], "env"));
+        EXPECT(!strcmp(report->breadcrumbs[0].meta_values[0], "production"));
+
+        EXPECT(!strcmp(report->breadcrumbs[1].name, "boot"));
+        EXPECT(report->breadcrumbs[1].meta_count == 1);
+        EXPECT(report->breadcrumbs[1].count == 1);
+        EXPECT(!strcmp(report->breadcrumbs[1].meta_keys[0], "env"));
+        EXPECT(!strcmp(report->breadcrumbs[1].meta_values[0], "dev"));
+      };
+      with_handler(handler, []() {
+        const char* b1_keys[] = {
+            "env",
+        };
+        const char* b1_values[] = {
+            "production",
+        };
+        const char* b2_keys[] = {
+            "env",
+        };
+        const char* b2_values[] = {
+            "dev",
+        };
+        forensics_add_breadcrumb("boot", b1_keys, b1_values, 1);
+        forensics_add_breadcrumb("boot", b2_keys, b2_values, 1);
+        FORENSICS_ASSERT(false);
+      });
+    }
+  }
+}
+
+CASE("breadcrumb count overflow") {
+  GIVEN("setup") {
+    forensics_config_t config;
+    forensics_config_init(&config);
+    config.max_breadcrumb_count = 2;
+    config.report_handler = &test_report_handler;
+    config.fatal_should_halt = false;
+    init_t init(&config);
+
+    WHEN("max breadcrumbs is reached, forget oldest crumb") {
+      auto handler = [=](const forensics_report_t* report) {
+        EXPECT(report->breadcrumb_count == 2);
+        EXPECT(!strcmp(report->breadcrumbs[0].name, "three"));
+        EXPECT(!strcmp(report->breadcrumbs[1].name, "four"));
+      };
+      with_handler(handler, []() {
+        forensics_add_breadcrumb("one", nullptr, nullptr, 0);
+        forensics_add_breadcrumb("two", nullptr, nullptr, 0);
+        forensics_add_breadcrumb("three", nullptr, nullptr, 0);
+        forensics_add_breadcrumb("four", nullptr, nullptr, 0);
+        FORENSICS_ASSERT(false);
+      });
+    }
+  }
+}
+
+CASE("zero capacity") {
+  GIVEN("setup") {
+    forensics_config_t config;
+    forensics_config_init(&config);
+    config.max_attribute_count = 0;
+    config.max_breadcrumb_count = 0;
+    config.report_handler = &test_report_handler;
+    config.fatal_should_halt = false;
+    init_t init(&config);
+
+    WHEN("attribute overflow, don't crash") {
+      auto handler = [=](const forensics_report_t* report) {
+        EXPECT(report->attribute_count == 0);
+        EXPECT(report->attribute_keys == nullptr);
+        EXPECT(report->attribute_values == nullptr);
+      };
+      with_handler(handler, []() {
+        forensics_set_attribute("build_id", "1.0");
+        FORENSICS_ASSERT(false);
+      });
+    }
+
+    WHEN("breadcrumb overflow, don't crash") {
+      auto handler = [=](const forensics_report_t* report) {
+        EXPECT(report->breadcrumb_count == 0);
+        EXPECT(report->breadcrumbs == nullptr);
+      };
+      with_handler(handler, []() {
+        forensics_add_breadcrumb("one", nullptr, nullptr, 0);
+        forensics_add_breadcrumb("two", nullptr, nullptr, 0);
+        forensics_add_breadcrumb("three", nullptr, nullptr, 0);
+        forensics_add_breadcrumb("four", nullptr, nullptr, 0);
+        FORENSICS_ASSERT(false);
+      });
+    }
+  }
+}
+
+CASE("breadcrumb buf overflow") {
+  GIVEN("setup") {
+    forensics_config_t config;
+    forensics_config_init(&config);
+    config.breadcrumb_buf_size_bytes = 16;
+    config.report_handler = &test_report_handler;
+    config.fatal_should_halt = false;
+    init_t init(&config);
+
+    WHEN("buffer fills; throw out old breadcrumbs") {
+      auto handler = [=](const forensics_report_t* report) {
+        EXPECT(report->breadcrumb_count == 2);
+        EXPECT(!strcmp(report->breadcrumbs[0].name, "three"));
+        EXPECT(!strcmp(report->breadcrumbs[1].name, "four"));
+      };
+      with_handler(handler, []() {
+        forensics_add_breadcrumb("one", nullptr, nullptr, 0);
+        forensics_add_breadcrumb("two", nullptr, nullptr, 0);
+        forensics_add_breadcrumb("three", nullptr, nullptr, 0);
+        forensics_add_breadcrumb("four", nullptr, nullptr, 0);
+        FORENSICS_ASSERT(false);
+      });
+    }
+  }
+}
+
 int main(int argc, char** argv) {
   int failed_count = lest::run(specs, argc, argv);
   if (failed_count == 0) {
