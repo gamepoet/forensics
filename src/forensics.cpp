@@ -15,11 +15,16 @@
 #define DEFAULT_BREADCRUMB_BUF_SIZE_BYTES (4 * 1024)
 
 struct context_buffer_t {
+  ~context_buffer_t();
+
   int count;
   int capacity;
   int overflow_count;
   bool initialized;
   const char** stack;
+
+  context_buffer_t* prev;
+  context_buffer_t* next;
 };
 struct breadcrumb_t {
   forensics_breadcrumb_t crumb;
@@ -28,6 +33,8 @@ struct breadcrumb_t {
 
 static forensics_config_t s_config;
 thread_local static context_buffer_t s_tls_context_buf;
+static context_buffer_t* s_context_buf_list;
+static std::mutex s_context_buf_list_mutex;
 
 static breadcrumb_t* s_breadcrumbs;
 static int s_breadcrumbs_index_next;
@@ -161,6 +168,65 @@ static void breadcrumb_deque() {
   --s_breadcrumbs_count;
 }
 
+static void context_buffer_init(context_buffer_t* ctx_buf) {
+  std::lock_guard<std::mutex> lock(s_context_buf_list_mutex);
+
+  ctx_buf->count = 0;
+  ctx_buf->capacity = s_config.max_context_depth;
+  ctx_buf->overflow_count = 0;
+  ctx_buf->initialized = true;
+  ctx_buf->stack = (const char**)malloc(sizeof(const char*) * s_config.max_context_depth);
+  ctx_buf->next = nullptr;
+  ctx_buf->prev = nullptr;
+
+  // add the context buffer to the linked list
+  if (s_context_buf_list == nullptr) {
+    // empty list
+    s_context_buf_list = ctx_buf;
+  }
+  else {
+    // insert at the head of the list
+    ctx_buf->next = s_context_buf_list;
+    s_context_buf_list = ctx_buf;
+    if (ctx_buf->next != nullptr) {
+      ctx_buf->prev = ctx_buf;
+    }
+  }
+}
+
+static void context_buffer_destroy(context_buffer_t* ctx_buf) {
+  std::lock_guard<std::mutex> lock(s_context_buf_list_mutex);
+
+  // handle multiple destroys (could be both explicit and implied from the destructor)
+  if (ctx_buf->initialized) {
+    free(ctx_buf->stack);
+    ctx_buf->stack = nullptr;
+    ctx_buf->initialized = false;
+
+    // remove the context buffer from the linked list
+    if (s_context_buf_list == ctx_buf) {
+      // remove from head of the list
+      s_context_buf_list = ctx_buf->next;
+      if (ctx_buf->next != nullptr) {
+        ctx_buf->next->prev = nullptr;
+      }
+    }
+    else {
+      // remove from the middle or end of the list
+      if (ctx_buf->next != nullptr) {
+        ctx_buf->next->prev = ctx_buf->prev;
+      }
+      if (ctx_buf->prev != nullptr) {
+        ctx_buf->prev->next = ctx_buf->next;
+      }
+    }
+  }
+}
+
+context_buffer_t::~context_buffer_t() {
+  context_buffer_destroy(this);
+}
+
 void forensics_config_init(forensics_config_t* config) {
   if (config != nullptr) {
     config->fatal_should_halt = true;
@@ -184,6 +250,8 @@ void forensics_init(const forensics_config_t* config) {
     forensics_config_init(&s_config);
   }
 
+  s_context_buf_list = nullptr;
+
   s_report_id = (char*)malloc(s_config.max_id_size_bytes);
   s_report_formatted_msg = (char*)malloc(s_config.max_formatted_message_size_bytes);
   s_report_breadcrumbs =
@@ -206,6 +274,11 @@ void forensics_init(const forensics_config_t* config) {
 }
 
 void forensics_shutdown() {
+  // free the allocated thread context buffers
+  while (s_context_buf_list != nullptr) {
+    context_buffer_destroy(s_context_buf_list);
+  }
+
   free(s_backtrace_buf);
 
   free(s_breadcrumbs_buf);
@@ -239,11 +312,7 @@ void forensics_context_begin(const char* name) {
 
   // handle first-time initialization (per thread)
   if (!ctx_buf->initialized) {
-    ctx_buf->count = 0;
-    ctx_buf->capacity = s_config.max_context_depth;
-    ctx_buf->overflow_count = 0;
-    ctx_buf->initialized = true;
-    ctx_buf->stack = (const char**)malloc(sizeof(const char*) * s_config.max_context_depth);
+    context_buffer_init(ctx_buf);
   }
 
   // check for overflow
@@ -448,7 +517,12 @@ void forensics_report_assert_failure(
 
   // grab the context stack
   struct context_buffer_t* ctx_buf = &s_tls_context_buf;
-  report.context_stack = ctx_buf->stack;
+  if (ctx_buf->count > 0) {
+    report.context_stack = ctx_buf->stack;
+  }
+  else {
+    report.context_stack = nullptr;
+  }
   report.context_count = ctx_buf->count;
 
   // gather the attributes

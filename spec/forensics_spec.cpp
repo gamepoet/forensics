@@ -423,6 +423,7 @@ CASE("zero capacity") {
     forensics_config_init(&config);
     config.max_attribute_count = 0;
     config.max_breadcrumb_count = 0;
+    config.max_context_depth = 0;
     config.report_handler = &test_report_handler;
     config.fatal_should_halt = false;
     init_t init(&config);
@@ -449,6 +450,18 @@ CASE("zero capacity") {
         forensics_add_breadcrumb("two", nullptr, nullptr, 0);
         forensics_add_breadcrumb("three", nullptr, nullptr, 0);
         forensics_add_breadcrumb("four", nullptr, nullptr, 0);
+        FORENSICS_ASSERT(false);
+      });
+    }
+
+    WHEN("context overflow, don't crash") {
+      auto handler = [=](const forensics_report_t* report) {
+        EXPECT(report->context_count == 0);
+        EXPECT(report->context_stack == nullptr);
+      };
+      with_handler(handler, []() {
+        FORENSICS_CONTEXT("one");
+        FORENSICS_CONTEXT("two");
         FORENSICS_ASSERT(false);
       });
     }
