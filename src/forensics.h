@@ -1,5 +1,6 @@
 #pragma once
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,6 +44,9 @@ struct forensics_report_t {
 
 typedef void (*forensics_report_handler_t)(const struct forensics_report_t* report);
 
+typedef void* (*forensics_alloc_t)(uintptr_t size, void* user_data);
+typedef void (*forensics_free_t)(void* memory, void* user_data);
+
 struct forensics_config_t {
   // Fatal assertions should halt. Set to false if you don't actually want fatal assertions to halt. This can be useful
   // if you are running tests.
@@ -74,6 +78,19 @@ struct forensics_config_t {
 
   // The report handler to use for errors.
   forensics_report_handler_t report_handler;
+
+  // Function used to allocate data needed by this library. Most of the allocation happens at initialization, but if you
+  // use contexts, there is an allocation for each thread the first time `forensics_context_begin()` is called on that
+  // thread. Thus if you use contexts, this allocation function must be thread-safe. The default allocator function is
+  // plain-old `malloc()`.
+  forensics_alloc_t alloc;
+
+  // Function used to free memory allocated by `alloc()`. This has the same thread-safety requirements as `alloc`. The
+  // default free function is plaid-old `free()`.
+  forensics_free_t free;
+
+  // Arbirtary user data that will be passed through to the `alloc()` and `free()` functions.
+  void* alloc_user_data;
 };
 
 // Initializes the given config struct to fill in the default values.

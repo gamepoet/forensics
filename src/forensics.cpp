@@ -60,6 +60,22 @@ static void panic() {
   exit(EXIT_FAILURE);
 }
 
+static void* default_alloc(uintptr_t size, void* user_data) {
+  return malloc(size);
+}
+
+static void default_free(void* memory, void* user_data) {
+  free(memory);
+}
+
+static void* forensics_alloc(uintptr_t size) {
+  return s_config.alloc(size, s_config.alloc_user_data);
+}
+
+static void forensics_free(void* memory) {
+  s_config.free(memory, s_config.alloc_user_data);
+}
+
 static int attribute_find(const char* key) {
   for (int index = 0; index < s_attribute_count; ++index) {
     if (0 == strcmp(key, s_attribute_keys[index])) {
@@ -175,7 +191,7 @@ static void context_buffer_init(context_buffer_t* ctx_buf) {
   ctx_buf->capacity = s_config.max_context_depth;
   ctx_buf->overflow_count = 0;
   ctx_buf->initialized = true;
-  ctx_buf->stack = (const char**)malloc(sizeof(const char*) * s_config.max_context_depth);
+  ctx_buf->stack = (const char**)forensics_alloc(sizeof(const char*) * s_config.max_context_depth);
   ctx_buf->next = nullptr;
   ctx_buf->prev = nullptr;
 
@@ -199,7 +215,7 @@ static void context_buffer_destroy(context_buffer_t* ctx_buf) {
 
   // handle multiple destroys (could be both explicit and implied from the destructor)
   if (ctx_buf->initialized) {
-    free(ctx_buf->stack);
+    forensics_free(ctx_buf->stack);
     ctx_buf->stack = nullptr;
     ctx_buf->initialized = false;
 
@@ -239,6 +255,9 @@ void forensics_config_init(forensics_config_t* config) {
     config->max_breadcrumb_count = DEFAULT_MAX_BREADCRUMB_COUNT;
     config->breadcrumb_buf_size_bytes = DEFAULT_BREADCRUMB_BUF_SIZE_BYTES;
     config->report_handler = &forensics_default_report_handler;
+    config->alloc = &default_alloc;
+    config->free = &default_free;
+    config->alloc_user_data = nullptr;
   }
 }
 
@@ -252,25 +271,25 @@ void forensics_init(const forensics_config_t* config) {
 
   s_context_buf_list = nullptr;
 
-  s_report_id = (char*)malloc(s_config.max_id_size_bytes);
-  s_report_formatted_msg = (char*)malloc(s_config.max_formatted_message_size_bytes);
+  s_report_id = (char*)forensics_alloc(s_config.max_id_size_bytes);
+  s_report_formatted_msg = (char*)forensics_alloc(s_config.max_formatted_message_size_bytes);
   s_report_breadcrumbs =
-      (forensics_breadcrumb_t*)malloc(s_config.max_breadcrumb_count * sizeof(forensics_breadcrumb_t));
+      (forensics_breadcrumb_t*)forensics_alloc(s_config.max_breadcrumb_count * sizeof(forensics_breadcrumb_t));
 
-  s_attribute_keys = (char**)malloc(s_config.max_attribute_count * sizeof(char*));
-  s_attribute_values = (char**)malloc(s_config.max_attribute_count * sizeof(char*));
-  s_attribute_buf = (char*)malloc(s_config.attribute_buf_size_bytes);
+  s_attribute_keys = (char**)forensics_alloc(s_config.max_attribute_count * sizeof(char*));
+  s_attribute_values = (char**)forensics_alloc(s_config.max_attribute_count * sizeof(char*));
+  s_attribute_buf = (char*)forensics_alloc(s_config.attribute_buf_size_bytes);
   s_attribute_count = 0;
   s_attribute_buf_used = 0;
 
-  s_breadcrumbs = (breadcrumb_t*)malloc(s_config.max_breadcrumb_count * sizeof(breadcrumb_t));
-  s_breadcrumbs_buf = (char*)malloc(s_config.breadcrumb_buf_size_bytes);
+  s_breadcrumbs = (breadcrumb_t*)forensics_alloc(s_config.max_breadcrumb_count * sizeof(breadcrumb_t));
+  s_breadcrumbs_buf = (char*)forensics_alloc(s_config.breadcrumb_buf_size_bytes);
   s_breadcrumbs_count = 0;
   s_breadcrumbs_index_next = 0;
   s_breadcrumbs_buf_read_index = 0;
   s_breadcrumbs_buf_write_index = 0;
 
-  s_backtrace_buf = (void**)malloc(s_config.max_backtrace_count * sizeof(void*));
+  s_backtrace_buf = (void**)forensics_alloc(s_config.max_backtrace_count * sizeof(void*));
 }
 
 void forensics_shutdown() {
@@ -279,10 +298,10 @@ void forensics_shutdown() {
     context_buffer_destroy(s_context_buf_list);
   }
 
-  free(s_backtrace_buf);
+  forensics_free(s_backtrace_buf);
 
-  free(s_breadcrumbs_buf);
-  free(s_breadcrumbs);
+  forensics_free(s_breadcrumbs_buf);
+  forensics_free(s_breadcrumbs);
   s_breadcrumbs_buf = nullptr;
   s_breadcrumbs = nullptr;
   s_breadcrumbs_count = 0;
@@ -290,20 +309,20 @@ void forensics_shutdown() {
   s_breadcrumbs_buf_read_index = 0;
   s_breadcrumbs_buf_write_index = 0;
 
-  free(s_attribute_buf);
-  free(s_attribute_values);
-  free(s_attribute_keys);
+  forensics_free(s_attribute_buf);
+  forensics_free(s_attribute_values);
+  forensics_free(s_attribute_keys);
   s_attribute_buf = nullptr;
   s_attribute_values = nullptr;
   s_attribute_keys = nullptr;
   s_attribute_count = 0;
   s_attribute_buf_used = 0;
 
-  free(s_report_breadcrumbs);
+  forensics_free(s_report_breadcrumbs);
   s_report_breadcrumbs = nullptr;
-  free(s_report_formatted_msg);
+  forensics_free(s_report_formatted_msg);
   s_report_formatted_msg = nullptr;
-  free(s_report_id);
+  forensics_free(s_report_id);
   s_report_id = nullptr;
 }
 
