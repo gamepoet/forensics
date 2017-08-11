@@ -13,6 +13,8 @@ Forensics is a library for helping you deal with bugs in your software. It provi
 
 ## Compiling
 
+This project uses CMake for compilation. Make sure it's installed and in your path.
+
 ```bash
 $ ./s/setup
 $ ./s/build
