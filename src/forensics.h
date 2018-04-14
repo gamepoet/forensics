@@ -17,10 +17,10 @@ typedef struct forensics_breadcrumb_t {
 
 // All the information available in an error report.
 typedef struct forensics_report_t {
-  const char* id;   // A agrregation id (or fingerprint) for this report: "CONTEXT-FILE_BASENAME-FUNC-MSG_FORMAT_STRING"
-  const char* file; // The source file where the assertion occurred.
-  int line;         // The source line where the assertion occurred.
-  const char* func; // The name of the func in which the assertion occurred.
+  const char* id;         // A agrregation id (or fingerprint) for this report: "CONTEXT-FILE_BASENAME-FUNC-MSG_FORMAT_STRING"
+  const char* file;       // The source file where the assertion occurred.
+  int line;               // The source line where the assertion occurred.
+  const char* func;       // The name of the func in which the assertion occurred.
   const char* expression; // The assertion conditional expression.
   const char* format;     // The format string (i.e. the unformatted message).
   const char* formatted;  // The formatted message.
@@ -38,7 +38,7 @@ typedef struct forensics_report_t {
   int attribute_count;                 // The number of attributes
 
   const void* const*
-      backtrace; // The code pointers that make up the backtrace at the point where the thread trigger the error report.
+      backtrace;       // The code pointers that make up the backtrace at the point where the thread trigger the error report.
   int backtrace_count; // The number of frames in the backtrace.
 } forensics_report_t;
 
@@ -141,24 +141,19 @@ void forensics_default_report_handler(const forensics_report_t* report);
 
 // Reports an assertion failure error. This will capture the backtrace and generate a report which will be given to the
 // configured report handler to process.
-void forensics_report_assert_failure(
-    const char* file, int line, const char* func, bool fatal, const char* expression, const char* format, ...);
+void forensics_report_assert_failure(const char* file, int line, const char* func, bool fatal, const char* expression, const char* format, ...);
 
 // A fatal assertion with no message.
-#define FORENSICS_ASSERT(expr)                                                                                         \
-  ((expr) ? true : (forensics_report_assert_failure(__FILE__, __LINE__, __func__, true, #expr, ""), false))
+#define FORENSICS_ASSERT(expr) ((expr) ? true : (forensics_report_assert_failure(__FILE__, __LINE__, __func__, true, #expr, ""), false))
 
 // A fatal assertion with a formatted message
-#define FORENSICS_ASSERTF(expr, ...)                                                                                   \
-  ((expr) ? true : (forensics_report_assert_failure(__FILE__, __LINE__, __func__, true, #expr, __VA_ARGS__), false))
+#define FORENSICS_ASSERTF(expr, ...) ((expr) ? true : (forensics_report_assert_failure(__FILE__, __LINE__, __func__, true, #expr, __VA_ARGS__), false))
 
 // A non-fatal assertion with no message. Returns the boolean result of the expression.
-#define FORENSICS_VERIFY(expr)                                                                                         \
-  ((expr) ? true : (forensics_report_assert_failure(__FILE__, __LINE__, __func__, false, #expr, ""), false))
+#define FORENSICS_VERIFY(expr) ((expr) ? true : (forensics_report_assert_failure(__FILE__, __LINE__, __func__, false, #expr, ""), false))
 
 // A non-fatal assertion with a formatted message. Returns the boolean result of the expression.
-#define FORENSICS_VERIFYF(expr, ...)                                                                                   \
-  ((expr) ? true : (forensics_report_assert_failure(__FILE__, __LINE__, __func__, false, #expr, __VA_ARGS__), false))
+#define FORENSICS_VERIFYF(expr, ...) ((expr) ? true : (forensics_report_assert_failure(__FILE__, __LINE__, __func__, false, #expr, __VA_ARGS__), false))
 
 #ifdef NDEBUG
 #define FORENSICS_ASSERT_DBG(expr) true
@@ -166,12 +161,10 @@ void forensics_report_assert_failure(
 #else
 
 // A fatal assertion with no message that is compiled out in release builds (when NDEBUG is defined).
-#define FORENSICS_ASSERT_DBG(expr)                                                                                     \
-  ((expr) ? true : (forensics_report_assert_failure(__FILE__, __LINE__, __func__, true, #expr, ""), false))
+#define FORENSICS_ASSERT_DBG(expr) ((expr) ? true : (forensics_report_assert_failure(__FILE__, __LINE__, __func__, true, #expr, ""), false))
 
 // A fatal assertion with a formatted message that is compiled out in release builds (when NDEBUG is defined).
-#define FORENSICS_ASSERT_DBGF(expr, ...)                                                                               \
-  ((expr) ? true : (forensics_report_assert_failure(__FILE__, __LINE__, __func__, true, #expr, __VA_ARGS__), false))
+#define FORENSICS_ASSERT_DBGF(expr, ...) ((expr) ? true : (forensics_report_assert_failure(__FILE__, __LINE__, __func__, true, #expr, __VA_ARGS__), false))
 #endif // NDEBUG
 
 #ifdef __cplusplus

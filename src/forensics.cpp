@@ -1,9 +1,9 @@
-#include "forensics.h"
-#include "backtrace.h"
 #include <cstdarg>
 #include <cstdlib>
 #include <mutex>
 #include <thread>
+#include "forensics.h"
+#include "backtrace.h"
 
 #define DEFAULT_MAX_CONTEXT_DEPTH 128
 #define DEFAULT_MAX_FORMATTED_MESSAGE_SIZE_BYTES (1 * 1024)
@@ -511,9 +511,7 @@ void forensics_default_report_handler(const forensics_report_t* report) {
   }
 }
 
-void forensics_report_assert_failure(
-    const char* file, int line, const char* func, bool fatal, const char* expression, const char* format, ...) {
-
+void forensics_report_assert_failure(const char* file, int line, const char* func, bool fatal, const char* expression, const char* format, ...) {
   // grab the mutex so only one thread can crash at a time
   std::lock_guard<std::mutex> lock(s_report_mutex);
 

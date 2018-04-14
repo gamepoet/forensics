@@ -255,10 +255,14 @@ TEST_CASE("breadcrumbs") {
     };
     with_handler(handler, []() {
       const char* meta_keys[] = {
-          "env", "build_id", "debug",
+          "env",
+          "build_id",
+          "debug",
       };
       const char* meta_values[] = {
-          "production", "1.0.7", "false",
+          "production",
+          "1.0.7",
+          "false",
       };
       forensics_add_breadcrumb("test", meta_keys, meta_values, 3);
       FORENSICS_ASSERT(false);
