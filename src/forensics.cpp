@@ -38,10 +38,10 @@ static std::mutex s_context_buf_list_mutex;
 
 static breadcrumb_t* s_breadcrumbs;
 static int s_breadcrumbs_index_next;
-static int s_breadcrumbs_count;
+static unsigned int s_breadcrumbs_count;
 static char* s_breadcrumbs_buf;
-static int s_breadcrumbs_buf_read_index;
-static int s_breadcrumbs_buf_write_index;
+static unsigned int s_breadcrumbs_buf_read_index;
+static unsigned int s_breadcrumbs_buf_write_index;
 
 static char** s_attribute_keys;
 static char** s_attribute_values;
@@ -138,9 +138,9 @@ static void attribute_append(const char* key, const char* value) {
   ++s_attribute_count;
 }
 
-static char* breadcrumb_buf_alloc(int size_bytes) {
-  int write_index = s_breadcrumbs_buf_write_index;
-  const int read_index = s_breadcrumbs_buf_read_index;
+static char* breadcrumb_buf_alloc(unsigned int size_bytes) {
+  unsigned int write_index = s_breadcrumbs_buf_write_index;
+  const unsigned int read_index = s_breadcrumbs_buf_read_index;
 
   // check if the write head will pass the read head
   if ((write_index < read_index) && (write_index + size_bytes > read_index)) {
@@ -402,7 +402,7 @@ void forensics_add_breadcrumb(const char* name, const char** meta_keys, const ch
   const int name_size_bytes = strlen(name) + 1;
 
   // compute the required space in the ringbuffer
-  int required_size = 0;
+  unsigned int required_size = 0;
   required_size += sizeof(char**) * meta_count * 2;
   required_size += name_size_bytes;
   for (int index = 0; index < meta_count; ++index) {
@@ -557,7 +557,7 @@ void forensics_report_assert_failure(const char* file, int line, const char* fun
   report.breadcrumb_count = s_breadcrumbs_count;
   if (s_breadcrumbs_count > 0) {
     report.breadcrumbs = s_report_breadcrumbs;
-    for (int index = 0; index < s_breadcrumbs_count; ++index) {
+    for (unsigned int index = 0; index < s_breadcrumbs_count; ++index) {
       const int src_index = (s_breadcrumbs_index_next + s_config.max_breadcrumb_count - s_breadcrumbs_count + index) %
                             s_config.max_breadcrumb_count;
       s_report_breadcrumbs[index] = s_breadcrumbs[src_index].crumb;
