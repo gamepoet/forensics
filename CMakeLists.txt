@@ -28,8 +28,6 @@ if(MSVC)
   string(REPLACE "/W3" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 endif()
 
-message(STATUS ${CMAKE_C_COMPILER_ID})
-
 add_library(forensics STATIC ${SRCS})
 target_compile_features(forensics PRIVATE cxx_std_11 cxx_thread_local)
 target_compile_features(forensics PUBLIC cxx_variadic_macros)
