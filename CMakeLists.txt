@@ -44,9 +44,9 @@ set(
   spec/forensics_spec.cpp
 )
 
-add_executable(test_forensics ${TEST_SRCS})
-target_compile_features(test_forensics PRIVATE cxx_std_11)
-target_link_libraries(test_forensics forensics)
+add_executable(test_runner ${TEST_SRCS})
+target_compile_features(test_runner PRIVATE cxx_std_11)
+target_link_libraries(test_runner forensics)
 
 enable_testing()
-add_test(NAME spec COMMAND test_forensics)
+add_test(NAME spec COMMAND test_runner)
