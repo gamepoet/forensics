@@ -327,7 +327,7 @@ void forensics_shutdown() {
 }
 
 void forensics_context_begin(const char* name) {
-  struct context_buffer_t* ctx_buf = &s_tls_context_buf;
+  context_buffer_t* ctx_buf = &s_tls_context_buf;
 
   // handle first-time initialization (per thread)
   if (!ctx_buf->initialized) {
@@ -347,7 +347,7 @@ void forensics_context_begin(const char* name) {
 }
 
 void forensics_context_end() {
-  struct context_buffer_t* ctx_buf = &s_tls_context_buf;
+  context_buffer_t* ctx_buf = &s_tls_context_buf;
 
   // check for overflow
   if (ctx_buf->overflow_count > 0) {
@@ -492,7 +492,7 @@ void forensics_set_attribute(const char* key, const char* value) {
   }
 }
 
-void forensics_default_report_handler(const struct forensics_report_t* report) {
+void forensics_default_report_handler(const forensics_report_t* report) {
   const char* context = "<none>";
   if (report->context_count > 0) {
     context = report->context_stack[report->context_count - 1];
@@ -535,7 +535,7 @@ void forensics_report_assert_failure(
   report.fatal = fatal;
 
   // grab the context stack
-  struct context_buffer_t* ctx_buf = &s_tls_context_buf;
+  context_buffer_t* ctx_buf = &s_tls_context_buf;
   if (ctx_buf->count > 0) {
     report.context_stack = ctx_buf->stack;
   }

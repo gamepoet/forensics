@@ -7,16 +7,16 @@ extern "C" {
 #endif
 
 // Contains information about a single breadcrumb in a report.
-struct forensics_breadcrumb_t {
+typedef struct forensics_breadcrumb_t {
   const char* name;         // the name of this breadcrumb
   const char** meta_keys;   // array of metadata key strings
   const char** meta_values; // array of metadata value strings
   int meta_count;           // the number of metadata key/value pairs
   int count;                // the number of times this breadcrumb occurred in a row
-};
+} forensics_breadcrumb_t;
 
 // All the information available in an error report.
-struct forensics_report_t {
+typedef struct forensics_report_t {
   const char* id;   // A agrregation id (or fingerprint) for this report: "CONTEXT-FILE_BASENAME-FUNC-MSG_FORMAT_STRING"
   const char* file; // The source file where the assertion occurred.
   int line;         // The source line where the assertion occurred.
@@ -40,14 +40,14 @@ struct forensics_report_t {
   const void* const*
       backtrace; // The code pointers that make up the backtrace at the point where the thread trigger the error report.
   int backtrace_count; // The number of frames in the backtrace.
-};
+} forensics_report_t;
 
-typedef void (*forensics_report_handler_t)(const struct forensics_report_t* report);
+typedef void (*forensics_report_handler_t)(const forensics_report_t* report);
 
 typedef void* (*forensics_alloc_t)(uintptr_t size, void* user_data);
 typedef void (*forensics_free_t)(void* memory, void* user_data);
 
-struct forensics_config_t {
+typedef struct forensics_config_t {
   // Fatal assertions should halt. Set to false if you don't actually want fatal assertions to halt. This can be useful
   // if you are running tests.
   bool fatal_should_halt;
@@ -91,15 +91,15 @@ struct forensics_config_t {
 
   // Arbirtary user data that will be passed through to the `alloc()` and `free()` functions.
   void* alloc_user_data;
-};
+} forensics_config_t;
 
 // Initializes the given config struct to fill in the default values.
-void forensics_config_init(struct forensics_config_t* config);
+void forensics_config_init(forensics_config_t* config);
 
 // Initializes this library with the given configuration. If NULL is given, then the default configuration will be used.
 // This will allocate the buffers required to do all error handling and reporting except for a context stack buffer that
 // is allocated for each thread that chooses to push on a context with `forensics_context_begin()`.
-void forensics_init(const struct forensics_config_t* config);
+void forensics_init(const forensics_config_t* config);
 
 // Tears down this library and frees all allocations.
 void forensics_shutdown();
@@ -137,7 +137,7 @@ void forensics_add_breadcrumb(const char* name, const char** meta_keys, const ch
 void forensics_set_attribute(const char* key, const char* value);
 
 // The default report handler. It simply prints report information to stderr.
-void forensics_default_report_handler(const struct forensics_report_t* report);
+void forensics_default_report_handler(const forensics_report_t* report);
 
 // Reports an assertion failure error. This will capture the backtrace and generate a report which will be given to the
 // configured report handler to process.
@@ -183,14 +183,14 @@ void forensics_report_assert_failure(
 #define FORENSICS_CONTEXT(name) forensics_context_t FORENSICS_CONTEXT_CONCAT(forensics_context__, __LINE__)(name)
 
 // C++ RAII implementation of an error context that will automatically end the context at the end of the current scope.
-struct forensics_context_t {
+typedef struct forensics_context_t {
   inline forensics_context_t(const char* name) {
     forensics_context_begin(name);
   }
   inline ~forensics_context_t() {
     forensics_context_end();
   }
-};
+} forensics_context_t;
 #endif // __cplusplus
 
 #ifdef __cplusplus
