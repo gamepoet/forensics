@@ -39,7 +39,8 @@ target_include_directories(
 
 set(
   TEST_SRCS
-  spec/lest.hpp
+  spec/catch.hpp
+  spec/main.cpp
   spec/forensics_spec.cpp
 )
 
