@@ -29,17 +29,15 @@ typedef struct forensics_report_t {
   const forensics_breadcrumb_t* breadcrumbs; // Array of breadcrumbs that have been left, in order.
   int breadcrumb_count;                      // The number of breadcrumbs.
 
-  const char* const*
-      context_stack; // The stack of error contexts. The most recent (i.e. responsible one) is at the end.
-  int context_count; // The number of contexts on the stack
+  const char* const* context_stack; // The stack of error contexts. The most recent (i.e. responsible one) is at the end.
+  int context_count;                // The number of contexts on the stack
 
   const char* const* attribute_keys;   // Array of attribute key strings
   const char* const* attribute_values; // Array of attribute value strings
   int attribute_count;                 // The number of attributes
 
-  const void* const*
-      backtrace;       // The code pointers that make up the backtrace at the point where the thread trigger the error report.
-  int backtrace_count; // The number of frames in the backtrace.
+  const void* const* backtrace; // The code pointers that make up the backtrace at the point where the thread trigger the error report.
+  int backtrace_count;          // The number of frames in the backtrace.
 } forensics_report_t;
 
 typedef void (*forensics_report_handler_t)(const forensics_report_t* report);
