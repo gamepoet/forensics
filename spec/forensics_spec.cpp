@@ -29,8 +29,8 @@ struct init_t {
 };
 
 static bool ends_with(const char* value, const char* suffix) {
-  int len_value = strlen(value);
-  int len_suffix = strlen(suffix);
+  int len_value = (int)strlen(value);
+  int len_suffix = (int)strlen(suffix);
   if (len_suffix > len_value) {
     return false;
   }
