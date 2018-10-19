@@ -46,19 +46,19 @@ static void with_handler(std::function<void(const forensics_report_t*)> handler,
   s_report_handler = nullptr;
 }
 
-static bool has_attribute(const forensics_report_t* report, const char* key) {
+static bool has_attribute(const forensics_report_t* report, const wchar_t* key) {
   for (int index = 0; index < report->attribute_count; ++index) {
-    if (0 == strcmp(report->attribute_keys[index], key)) {
+    if (0 == wcscmp(report->attribute_keys[index], key)) {
       return true;
     }
   }
   return false;
 }
 
-static bool has_attribute_value(const forensics_report_t* report, const char* key, const char* value) {
+static bool has_attribute_value(const forensics_report_t* report, const wchar_t* key, const wchar_t* value) {
   for (int index = 0; index < report->attribute_count; ++index) {
-    if (0 == strcmp(report->attribute_keys[index], key)) {
-      if (0 == strcmp(report->attribute_values[index], value)) {
+    if (0 == wcscmp(report->attribute_keys[index], key)) {
+      if (0 == wcscmp(report->attribute_values[index], value)) {
         return true;
       }
       return false;
@@ -78,7 +78,7 @@ TEST_CASE("basic report handling") {
 
   SECTION("when there is no formatted message") {
     auto handler = [=](const forensics_report_t* report) {
-      CHECK(!strcmp(report->id, REPORT_ID("<none>", "forensics_spec.cpp", "")));
+      CHECK(!wcscmp(report->id, REPORT_ID(L"<none>", L"forensics_spec.cpp", L"")));
       CHECK(ends_with(report->file, "forensics_spec.cpp"));
       CHECK(0 == strcmp(report->expression, "false"));
       CHECK(report->format[0] == 0);
@@ -93,17 +93,17 @@ TEST_CASE("basic report handling") {
 
   SECTION("when there is a formatted message") {
     auto handler = [=](const forensics_report_t* report) {
-      CHECK(!strcmp(report->id, REPORT_ID("<none>", "forensics_spec.cpp", "failed num=%d")));
+      CHECK(!wcscmp(report->id, REPORT_ID(L"<none>", L"forensics_spec.cpp", L"failed num=%d")));
       CHECK(ends_with(report->file, "forensics_spec.cpp"));
       CHECK(0 == strcmp(report->expression, "false"));
-      CHECK(!strcmp(report->format, "failed num=%d"));
-      CHECK(!strcmp(report->formatted, "failed num=2"));
+      CHECK(!wcscmp(report->format, L"failed num=%d"));
+      CHECK(!wcscmp(report->formatted, L"failed num=2"));
       CHECK(report->fatal == true);
       CHECK(report->backtrace_count > 0);
       CHECK(report->backtrace != nullptr);
       CHECK(report->line == __LINE__ + 2);
     };
-    with_handler(handler, []() { FORENSICS_ASSERTF(false, "failed num=%d", 2); });
+    with_handler(handler, []() { FORENSICS_ASSERTF(false, L"failed num=%d", 2); });
   }
 }
 
@@ -120,26 +120,26 @@ TEST_CASE("attributes") {
   }
 
   SECTION("there are some attributes") {
-    forensics_set_attribute("user", "shawn spencer");
-    forensics_set_attribute("version", "1.0.0");
+    forensics_set_attribute(L"user", L"shawn spencer");
+    forensics_set_attribute(L"version", L"1.0.0");
 
     auto handler = [=](const forensics_report_t* report) {
       CHECK(report->attribute_count == 2);
-      CHECK(has_attribute_value(report, "version", "1.0.0"));
-      CHECK(has_attribute_value(report, "user", "shawn spencer"));
+      CHECK(has_attribute_value(report, L"version", L"1.0.0"));
+      CHECK(has_attribute_value(report, L"user", L"shawn spencer"));
     };
     with_handler(handler, []() { FORENSICS_ASSERT(false); });
   }
 
   SECTION("some attributes are cleared with nullptr value") {
-    forensics_set_attribute("user", "shawn spencer");
-    forensics_set_attribute("version", "1.0.0");
-    forensics_set_attribute("user", nullptr);
+    forensics_set_attribute(L"user", L"shawn spencer");
+    forensics_set_attribute(L"version", L"1.0.0");
+    forensics_set_attribute(L"user", nullptr);
 
     auto handler = [=](const forensics_report_t* report) {
       CHECK(report->attribute_count == 1);
-      CHECK(has_attribute_value(report, "version", "1.0.0"));
-      CHECK(!has_attribute(report, "user"));
+      CHECK(has_attribute_value(report, L"version", L"1.0.0"));
+      CHECK(!has_attribute(report, L"user"));
     };
     with_handler(handler, []() { FORENSICS_ASSERT(false); });
   }
@@ -152,7 +152,7 @@ TEST_CASE("context") {
     auto handler = [=](const forensics_report_t* report) {
       CHECK(report->context_count == 0);
       CHECK(report->context_stack == nullptr);
-      CHECK(!strcmp(report->id, REPORT_ID("<none>", "forensics_spec.cpp", "")));
+      CHECK(!wcscmp(report->id, REPORT_ID(L"<none>", L"forensics_spec.cpp", L"")));
     };
     with_handler(handler, []() { FORENSICS_ASSERT(false); });
   }
@@ -160,11 +160,11 @@ TEST_CASE("context") {
   SECTION("there is a single context") {
     auto handler = [=](const forensics_report_t* report) {
       CHECK(report->context_count == 1);
-      CHECK(!strcmp(report->context_stack[0], "global"));
-      CHECK(!strcmp(report->id, REPORT_ID("global", "forensics_spec.cpp", "")));
+      CHECK(!wcscmp(report->context_stack[0], L"global"));
+      CHECK(!wcscmp(report->id, REPORT_ID(L"global", L"forensics_spec.cpp", L"")));
     };
     with_handler(handler, []() {
-      FORENSICS_CONTEXT("global");
+      FORENSICS_CONTEXT(L"global");
       FORENSICS_ASSERT(false);
     });
   }
@@ -172,15 +172,15 @@ TEST_CASE("context") {
   SECTION("there are many contexts") {
     auto handler = [=](const forensics_report_t* report) {
       CHECK(report->context_count == 3);
-      CHECK(!strcmp(report->context_stack[0], "global"));
-      CHECK(!strcmp(report->context_stack[1], "local"));
-      CHECK(!strcmp(report->context_stack[2], "personal"));
-      CHECK(!strcmp(report->id, REPORT_ID("personal", "forensics_spec.cpp", "")));
+      CHECK(!wcscmp(report->context_stack[0], L"global"));
+      CHECK(!wcscmp(report->context_stack[1], L"local"));
+      CHECK(!wcscmp(report->context_stack[2], L"personal"));
+      CHECK(!wcscmp(report->id, REPORT_ID(L"personal", L"forensics_spec.cpp", L"")));
     };
     with_handler(handler, []() {
-      FORENSICS_CONTEXT("global");
-      FORENSICS_CONTEXT("local");
-      FORENSICS_CONTEXT("personal");
+      FORENSICS_CONTEXT(L"global");
+      FORENSICS_CONTEXT(L"local");
+      FORENSICS_CONTEXT(L"personal");
       FORENSICS_ASSERT(false);
     });
   }
@@ -201,14 +201,14 @@ TEST_CASE("breadcrumbs") {
     auto handler = [=](const forensics_report_t* report) {
       CHECK(report->breadcrumb_count == 1);
       CHECK(report->breadcrumbs != nullptr);
-      CHECK(!strcmp(report->breadcrumbs[0].name, "test"));
+      CHECK(!wcscmp(report->breadcrumbs[0].name, L"test"));
       CHECK(report->breadcrumbs[0].meta_keys == nullptr);
       CHECK(report->breadcrumbs[0].meta_values == nullptr);
       CHECK(report->breadcrumbs[0].meta_count == 0);
       CHECK(report->breadcrumbs[0].count == 1);
     };
     with_handler(handler, []() {
-      forensics_add_breadcrumb("test", nullptr, nullptr, 0);
+      forensics_add_breadcrumb(L"test", nullptr, nullptr, 0);
       FORENSICS_ASSERT(false);
     });
   }
@@ -217,22 +217,22 @@ TEST_CASE("breadcrumbs") {
     auto handler = [=](const forensics_report_t* report) {
       CHECK(report->breadcrumb_count == 1);
       CHECK(report->breadcrumbs != nullptr);
-      CHECK(!strcmp(report->breadcrumbs[0].name, "test"));
+      CHECK(!wcscmp(report->breadcrumbs[0].name, L"test"));
       CHECK(report->breadcrumbs[0].meta_keys != nullptr);
       CHECK(report->breadcrumbs[0].meta_values != nullptr);
       CHECK(report->breadcrumbs[0].meta_count == 1);
       CHECK(report->breadcrumbs[0].count == 1);
-      CHECK(!strcmp(report->breadcrumbs[0].meta_keys[0], "env"));
-      CHECK(!strcmp(report->breadcrumbs[0].meta_values[0], "production"));
+      CHECK(!wcscmp(report->breadcrumbs[0].meta_keys[0], L"env"));
+      CHECK(!wcscmp(report->breadcrumbs[0].meta_values[0], L"production"));
     };
     with_handler(handler, []() {
-      const char* meta_keys[] = {
-          "env",
+      const wchar_t* meta_keys[] = {
+          L"env",
       };
-      const char* meta_values[] = {
-          "production",
+      const wchar_t* meta_values[] = {
+          L"production",
       };
-      forensics_add_breadcrumb("test", meta_keys, meta_values, 1);
+      forensics_add_breadcrumb(L"test", meta_keys, meta_values, 1);
       FORENSICS_ASSERT(false);
     });
   }
@@ -241,30 +241,30 @@ TEST_CASE("breadcrumbs") {
     auto handler = [=](const forensics_report_t* report) {
       CHECK(report->breadcrumb_count == 1);
       CHECK(report->breadcrumbs != nullptr);
-      CHECK(!strcmp(report->breadcrumbs[0].name, "test"));
+      CHECK(!wcscmp(report->breadcrumbs[0].name, L"test"));
       CHECK(report->breadcrumbs[0].meta_keys != nullptr);
       CHECK(report->breadcrumbs[0].meta_values != nullptr);
       CHECK(report->breadcrumbs[0].meta_count == 3);
       CHECK(report->breadcrumbs[0].count == 1);
-      CHECK(!strcmp(report->breadcrumbs[0].meta_keys[0], "env"));
-      CHECK(!strcmp(report->breadcrumbs[0].meta_values[0], "production"));
-      CHECK(!strcmp(report->breadcrumbs[0].meta_keys[1], "build_id"));
-      CHECK(!strcmp(report->breadcrumbs[0].meta_values[1], "1.0.7"));
-      CHECK(!strcmp(report->breadcrumbs[0].meta_keys[2], "debug"));
-      CHECK(!strcmp(report->breadcrumbs[0].meta_values[2], "false"));
+      CHECK(!wcscmp(report->breadcrumbs[0].meta_keys[0], L"env"));
+      CHECK(!wcscmp(report->breadcrumbs[0].meta_values[0], L"production"));
+      CHECK(!wcscmp(report->breadcrumbs[0].meta_keys[1], L"build_id"));
+      CHECK(!wcscmp(report->breadcrumbs[0].meta_values[1], L"1.0.7"));
+      CHECK(!wcscmp(report->breadcrumbs[0].meta_keys[2], L"debug"));
+      CHECK(!wcscmp(report->breadcrumbs[0].meta_values[2], L"false"));
     };
     with_handler(handler, []() {
-      const char* meta_keys[] = {
-          "env",
-          "build_id",
-          "debug",
+      const wchar_t* meta_keys[] = {
+          L"env",
+          L"build_id",
+          L"debug",
       };
-      const char* meta_values[] = {
-          "production",
-          "1.0.7",
-          "false",
+      const wchar_t* meta_values[] = {
+          L"production",
+          L"1.0.7",
+          L"false",
       };
-      forensics_add_breadcrumb("test", meta_keys, meta_values, 3);
+      forensics_add_breadcrumb(L"test", meta_keys, meta_values, 3);
       FORENSICS_ASSERT(false);
     });
   }
@@ -273,46 +273,46 @@ TEST_CASE("breadcrumbs") {
     auto handler = [=](const forensics_report_t* report) {
       CHECK(report->breadcrumb_count == 3);
       CHECK(report->breadcrumbs != nullptr);
-      CHECK(!strcmp(report->breadcrumbs[0].name, "click"));
+      CHECK(!wcscmp(report->breadcrumbs[0].name, L"click"));
       CHECK(report->breadcrumbs[0].meta_count == 1);
       CHECK(report->breadcrumbs[0].count == 1);
-      CHECK(!strcmp(report->breadcrumbs[0].meta_keys[0], "pos"));
-      CHECK(!strcmp(report->breadcrumbs[0].meta_values[0], "37, 100"));
+      CHECK(!wcscmp(report->breadcrumbs[0].meta_keys[0], L"pos"));
+      CHECK(!wcscmp(report->breadcrumbs[0].meta_values[0], L"37, 100"));
 
-      CHECK(!strcmp(report->breadcrumbs[1].name, "connect"));
+      CHECK(!wcscmp(report->breadcrumbs[1].name, L"connect"));
       CHECK(report->breadcrumbs[1].meta_count == 1);
       CHECK(report->breadcrumbs[1].count == 1);
-      CHECK(!strcmp(report->breadcrumbs[1].meta_keys[0], "endpoint"));
-      CHECK(!strcmp(report->breadcrumbs[1].meta_values[0], "127.0.0.1:8080"));
+      CHECK(!wcscmp(report->breadcrumbs[1].meta_keys[0], L"endpoint"));
+      CHECK(!wcscmp(report->breadcrumbs[1].meta_values[0], L"127.0.0.1:8080"));
 
-      CHECK(!strcmp(report->breadcrumbs[2].name, "connect"));
+      CHECK(!wcscmp(report->breadcrumbs[2].name, L"connect"));
       CHECK(report->breadcrumbs[2].meta_count == 1);
       CHECK(report->breadcrumbs[2].count == 1);
-      CHECK(!strcmp(report->breadcrumbs[2].meta_keys[0], "endpoint"));
-      CHECK(!strcmp(report->breadcrumbs[2].meta_values[0], "10.0.0.1:9000"));
+      CHECK(!wcscmp(report->breadcrumbs[2].meta_keys[0], L"endpoint"));
+      CHECK(!wcscmp(report->breadcrumbs[2].meta_values[0], L"10.0.0.1:9000"));
     };
     with_handler(handler, []() {
-      const char* b1_keys[] = {
-          "pos",
+      const wchar_t* b1_keys[] = {
+          L"pos",
       };
-      const char* b1_values[] = {
-          "37, 100",
+      const wchar_t* b1_values[] = {
+          L"37, 100",
       };
-      const char* b2_keys[] = {
-          "endpoint",
+      const wchar_t* b2_keys[] = {
+          L"endpoint",
       };
-      const char* b2_values[] = {
-          "127.0.0.1:8080",
+      const wchar_t* b2_values[] = {
+          L"127.0.0.1:8080",
       };
-      const char* b3_keys[] = {
-          "endpoint",
+      const wchar_t* b3_keys[] = {
+          L"endpoint",
       };
-      const char* b3_values[] = {
-          "10.0.0.1:9000",
+      const wchar_t* b3_values[] = {
+          L"10.0.0.1:9000",
       };
-      forensics_add_breadcrumb("click", b1_keys, b1_values, 1);
-      forensics_add_breadcrumb("connect", b2_keys, b2_values, 1);
-      forensics_add_breadcrumb("connect", b3_keys, b3_values, 1);
+      forensics_add_breadcrumb(L"click", b1_keys, b1_values, 1);
+      forensics_add_breadcrumb(L"connect", b2_keys, b2_values, 1);
+      forensics_add_breadcrumb(L"connect", b3_keys, b3_values, 1);
       FORENSICS_ASSERT(false);
     });
   }
@@ -321,27 +321,27 @@ TEST_CASE("breadcrumbs") {
     auto handler = [=](const forensics_report_t* report) {
       CHECK(report->breadcrumb_count == 1);
       CHECK(report->breadcrumbs != nullptr);
-      CHECK(!strcmp(report->breadcrumbs[0].name, "boot"));
+      CHECK(!wcscmp(report->breadcrumbs[0].name, L"boot"));
       CHECK(report->breadcrumbs[0].meta_count == 1);
       CHECK(report->breadcrumbs[0].count == 2);
-      CHECK(!strcmp(report->breadcrumbs[0].meta_keys[0], "env"));
-      CHECK(!strcmp(report->breadcrumbs[0].meta_values[0], "production"));
+      CHECK(!wcscmp(report->breadcrumbs[0].meta_keys[0], L"env"));
+      CHECK(!wcscmp(report->breadcrumbs[0].meta_values[0], L"production"));
     };
     with_handler(handler, []() {
-      const char* b1_keys[] = {
-          "env",
+      const wchar_t* b1_keys[] = {
+          L"env",
       };
-      const char* b1_values[] = {
-          "production",
+      const wchar_t* b1_values[] = {
+          L"production",
       };
-      const char* b2_keys[] = {
-          "env",
+      const wchar_t* b2_keys[] = {
+          L"env",
       };
-      const char* b2_values[] = {
-          "production",
+      const wchar_t* b2_values[] = {
+          L"production",
       };
-      forensics_add_breadcrumb("boot", b1_keys, b1_values, 1);
-      forensics_add_breadcrumb("boot", b2_keys, b2_values, 1);
+      forensics_add_breadcrumb(L"boot", b1_keys, b1_values, 1);
+      forensics_add_breadcrumb(L"boot", b2_keys, b2_values, 1);
       FORENSICS_ASSERT(false);
     });
   }
@@ -350,33 +350,33 @@ TEST_CASE("breadcrumbs") {
     auto handler = [=](const forensics_report_t* report) {
       CHECK(report->breadcrumb_count == 2);
       CHECK(report->breadcrumbs != nullptr);
-      CHECK(!strcmp(report->breadcrumbs[0].name, "boot"));
+      CHECK(!wcscmp(report->breadcrumbs[0].name, L"boot"));
       CHECK(report->breadcrumbs[0].meta_count == 1);
       CHECK(report->breadcrumbs[0].count == 1);
-      CHECK(!strcmp(report->breadcrumbs[0].meta_keys[0], "env"));
-      CHECK(!strcmp(report->breadcrumbs[0].meta_values[0], "production"));
+      CHECK(!wcscmp(report->breadcrumbs[0].meta_keys[0], L"env"));
+      CHECK(!wcscmp(report->breadcrumbs[0].meta_values[0], L"production"));
 
-      CHECK(!strcmp(report->breadcrumbs[1].name, "boot"));
+      CHECK(!wcscmp(report->breadcrumbs[1].name, L"boot"));
       CHECK(report->breadcrumbs[1].meta_count == 1);
       CHECK(report->breadcrumbs[1].count == 1);
-      CHECK(!strcmp(report->breadcrumbs[1].meta_keys[0], "env"));
-      CHECK(!strcmp(report->breadcrumbs[1].meta_values[0], "dev"));
+      CHECK(!wcscmp(report->breadcrumbs[1].meta_keys[0], L"env"));
+      CHECK(!wcscmp(report->breadcrumbs[1].meta_values[0], L"dev"));
     };
     with_handler(handler, []() {
-      const char* b1_keys[] = {
-          "env",
+      const wchar_t* b1_keys[] = {
+          L"env",
       };
-      const char* b1_values[] = {
-          "production",
+      const wchar_t* b1_values[] = {
+          L"production",
       };
-      const char* b2_keys[] = {
-          "env",
+      const wchar_t* b2_keys[] = {
+          L"env",
       };
-      const char* b2_values[] = {
-          "dev",
+      const wchar_t* b2_values[] = {
+          L"dev",
       };
-      forensics_add_breadcrumb("boot", b1_keys, b1_values, 1);
-      forensics_add_breadcrumb("boot", b2_keys, b2_values, 1);
+      forensics_add_breadcrumb(L"boot", b1_keys, b1_values, 1);
+      forensics_add_breadcrumb(L"boot", b2_keys, b2_values, 1);
       FORENSICS_ASSERT(false);
     });
   }
@@ -393,14 +393,14 @@ TEST_CASE("breadcrumb count overflow") {
   SECTION("max breadcrumbs is reached, forget oldest crumb") {
     auto handler = [=](const forensics_report_t* report) {
       CHECK(report->breadcrumb_count == 2);
-      CHECK(!strcmp(report->breadcrumbs[0].name, "three"));
-      CHECK(!strcmp(report->breadcrumbs[1].name, "four"));
+      CHECK(!wcscmp(report->breadcrumbs[0].name, L"three"));
+      CHECK(!wcscmp(report->breadcrumbs[1].name, L"four"));
     };
     with_handler(handler, []() {
-      forensics_add_breadcrumb("one", nullptr, nullptr, 0);
-      forensics_add_breadcrumb("two", nullptr, nullptr, 0);
-      forensics_add_breadcrumb("three", nullptr, nullptr, 0);
-      forensics_add_breadcrumb("four", nullptr, nullptr, 0);
+      forensics_add_breadcrumb(L"one", nullptr, nullptr, 0);
+      forensics_add_breadcrumb(L"two", nullptr, nullptr, 0);
+      forensics_add_breadcrumb(L"three", nullptr, nullptr, 0);
+      forensics_add_breadcrumb(L"four", nullptr, nullptr, 0);
       FORENSICS_ASSERT(false);
     });
   }
@@ -423,7 +423,7 @@ TEST_CASE("zero capacity") {
       CHECK(report->attribute_values == nullptr);
     };
     with_handler(handler, []() {
-      forensics_set_attribute("build_id", "1.0");
+      forensics_set_attribute(L"build_id", L"1.0");
       FORENSICS_ASSERT(false);
     });
   }
@@ -434,10 +434,10 @@ TEST_CASE("zero capacity") {
       CHECK(report->breadcrumbs == nullptr);
     };
     with_handler(handler, []() {
-      forensics_add_breadcrumb("one", nullptr, nullptr, 0);
-      forensics_add_breadcrumb("two", nullptr, nullptr, 0);
-      forensics_add_breadcrumb("three", nullptr, nullptr, 0);
-      forensics_add_breadcrumb("four", nullptr, nullptr, 0);
+      forensics_add_breadcrumb(L"one", nullptr, nullptr, 0);
+      forensics_add_breadcrumb(L"two", nullptr, nullptr, 0);
+      forensics_add_breadcrumb(L"three", nullptr, nullptr, 0);
+      forensics_add_breadcrumb(L"four", nullptr, nullptr, 0);
       FORENSICS_ASSERT(false);
     });
   }
@@ -448,8 +448,8 @@ TEST_CASE("zero capacity") {
       CHECK(report->context_stack == nullptr);
     };
     with_handler(handler, []() {
-      FORENSICS_CONTEXT("one");
-      FORENSICS_CONTEXT("two");
+      FORENSICS_CONTEXT(L"one");
+      FORENSICS_CONTEXT(L"two");
       FORENSICS_ASSERT(false);
     });
   }
@@ -466,14 +466,14 @@ TEST_CASE("breadcrumb buf overflow") {
   SECTION("buffer fills; throw out old breadcrumbs") {
     auto handler = [=](const forensics_report_t* report) {
       CHECK(report->breadcrumb_count == 2);
-      CHECK(!strcmp(report->breadcrumbs[0].name, "three"));
-      CHECK(!strcmp(report->breadcrumbs[1].name, "four"));
+      CHECK(!wcscmp(report->breadcrumbs[0].name, L"three"));
+      CHECK(!wcscmp(report->breadcrumbs[1].name, L"four"));
     };
     with_handler(handler, []() {
-      forensics_add_breadcrumb("one", nullptr, nullptr, 0);
-      forensics_add_breadcrumb("two", nullptr, nullptr, 0);
-      forensics_add_breadcrumb("three", nullptr, nullptr, 0);
-      forensics_add_breadcrumb("four", nullptr, nullptr, 0);
+      forensics_add_breadcrumb(L"one", nullptr, nullptr, 0);
+      forensics_add_breadcrumb(L"two", nullptr, nullptr, 0);
+      forensics_add_breadcrumb(L"three", nullptr, nullptr, 0);
+      forensics_add_breadcrumb(L"four", nullptr, nullptr, 0);
       FORENSICS_ASSERT(false);
     });
   }

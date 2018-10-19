@@ -21,7 +21,7 @@ struct context_buffer_t {
   int capacity;
   int overflow_count;
   bool initialized;
-  const char** stack;
+  const wchar_t** stack;
 
   context_buffer_t* prev;
   context_buffer_t* next;
@@ -43,8 +43,8 @@ static char* s_breadcrumbs_buf;
 static unsigned int s_breadcrumbs_buf_read_index;
 static unsigned int s_breadcrumbs_buf_write_index;
 
-static char** s_attribute_keys;
-static char** s_attribute_values;
+static wchar_t** s_attribute_keys;
+static wchar_t** s_attribute_values;
 static int s_attribute_count;
 static char* s_attribute_buf;
 static int s_attribute_buf_used;
@@ -52,8 +52,8 @@ static int s_attribute_buf_used;
 static void** s_backtrace_buf;
 
 static std::mutex s_report_mutex;
-static char* s_report_id;
-static char* s_report_formatted_msg;
+static wchar_t* s_report_id;
+static wchar_t* s_report_formatted_msg;
 static forensics_breadcrumb_t* s_report_breadcrumbs;
 
 static void panic() {
@@ -76,9 +76,9 @@ static void forensics_free(void* memory) {
   s_config.free(memory, s_config.alloc_user_data);
 }
 
-static int attribute_find(const char* key) {
+static int attribute_find(const wchar_t* key) {
   for (int index = 0; index < s_attribute_count; ++index) {
-    if (0 == strcmp(key, s_attribute_keys[index])) {
+    if (0 == wcscmp(key, s_attribute_keys[index])) {
       return index;
     }
   }
@@ -86,14 +86,14 @@ static int attribute_find(const char* key) {
 }
 
 static void attribute_clear(int index) {
-  char* key = s_attribute_keys[index];
-  char* value = s_attribute_values[index];
-  const int key_size_bytes = strlen(key) + 1;
-  const int value_size_bytes = strlen(value) + 1;
+  wchar_t* key = s_attribute_keys[index];
+  wchar_t* value = s_attribute_values[index];
+  const int key_size_bytes = (wcslen(key) + 1) * sizeof(wchar_t);
+  const int value_size_bytes = (wcslen(value) + 1) * sizeof(wchar_t);
   const int size_bytes = key_size_bytes + value_size_bytes;
 
   // fill in the hole in the buffer
-  const intptr_t key_offset = (intptr_t)(key - s_attribute_buf);
+  const intptr_t key_offset = (intptr_t)key - (intptr_t)s_attribute_buf;
   const intptr_t bytes_to_copy = s_attribute_buf_used - key_offset - size_bytes;
   memcpy(key, key + size_bytes, bytes_to_copy);
 
@@ -106,28 +106,28 @@ static void attribute_clear(int index) {
   --s_attribute_count;
 }
 
-static void attribute_append(const char* key, const char* value) {
+static void attribute_append(const wchar_t* key, const wchar_t* value) {
   FORENSICS_ASSERTF(s_attribute_count < (int)s_config.max_attribute_count,
-                    "Cannot set attribute because the attribute key array is full. Try increasing the size of "
-                    "max_attribute_count. key=%s value=%s",
+                    L"Cannot set attribute because the attribute key array is full. Try increasing the size of "
+                    L"max_attribute_count. key=%s value=%s",
                     key,
                     value);
 
-  const int key_size_bytes = strlen(key) + 1;
-  const int value_size_bytes = strlen(value) + 1;
+  const int key_size_bytes = (wcslen(key) + 1) * sizeof(wchar_t);
+  const int value_size_bytes = (wcslen(value) + 1) * sizeof(wchar_t);
   const int size_bytes = key_size_bytes + value_size_bytes;
 
   const int avail = s_config.attribute_buf_size_bytes - s_attribute_buf_used;
   FORENSICS_ASSERTF(avail >= size_bytes,
-                    "Cannot set attribute because the attribute buffer is full. Try increasing the size of "
-                    "attribute_buf_size_bytes. attribute=%s needed=%d avail=%d",
+                    L"Cannot set attribute because the attribute buffer is full. Try increasing the size of "
+                    L"attribute_buf_size_bytes. attribute=%s needed=%d avail=%d",
                     key,
                     size_bytes,
                     avail);
 
   // copy in the string data
-  char* key_in_buf = s_attribute_buf + s_attribute_buf_used;
-  char* value_in_buf = key_in_buf + key_size_bytes;
+  wchar_t* key_in_buf = (wchar_t*)(s_attribute_buf + s_attribute_buf_used);
+  wchar_t* value_in_buf = (wchar_t*)((char*)key_in_buf + key_size_bytes);
   memmove(key_in_buf, key, key_size_bytes);
   memmove(value_in_buf, value, value_size_bytes);
   s_attribute_buf_used += size_bytes;
@@ -162,8 +162,7 @@ static char* breadcrumb_buf_alloc(unsigned int size_bytes) {
 }
 
 static void breadcrumb_deque() {
-  const int first_index =
-      (s_breadcrumbs_index_next + s_config.max_breadcrumb_count - s_breadcrumbs_count) % s_config.max_breadcrumb_count;
+  const int first_index = (s_breadcrumbs_index_next + s_config.max_breadcrumb_count - s_breadcrumbs_count) % s_config.max_breadcrumb_count;
   breadcrumb_t* breadcrumb = s_breadcrumbs + first_index;
 
   // free the ring buffer space
@@ -191,7 +190,7 @@ static void context_buffer_init(context_buffer_t* ctx_buf) {
   ctx_buf->capacity = s_config.max_context_depth;
   ctx_buf->overflow_count = 0;
   ctx_buf->initialized = true;
-  ctx_buf->stack = (const char**)forensics_alloc(sizeof(const char*) * s_config.max_context_depth);
+  ctx_buf->stack = (const wchar_t**)forensics_alloc(sizeof(const wchar_t*) * s_config.max_context_depth);
   ctx_buf->next = nullptr;
   ctx_buf->prev = nullptr;
 
@@ -271,13 +270,12 @@ void forensics_init(const forensics_config_t* config) {
 
   s_context_buf_list = nullptr;
 
-  s_report_id = (char*)forensics_alloc(s_config.max_id_size_bytes);
-  s_report_formatted_msg = (char*)forensics_alloc(s_config.max_formatted_message_size_bytes);
-  s_report_breadcrumbs =
-      (forensics_breadcrumb_t*)forensics_alloc(s_config.max_breadcrumb_count * sizeof(forensics_breadcrumb_t));
+  s_report_id = (wchar_t*)forensics_alloc(s_config.max_id_size_bytes);
+  s_report_formatted_msg = (wchar_t*)forensics_alloc(s_config.max_formatted_message_size_bytes);
+  s_report_breadcrumbs = (forensics_breadcrumb_t*)forensics_alloc(s_config.max_breadcrumb_count * sizeof(forensics_breadcrumb_t));
 
-  s_attribute_keys = (char**)forensics_alloc(s_config.max_attribute_count * sizeof(char*));
-  s_attribute_values = (char**)forensics_alloc(s_config.max_attribute_count * sizeof(char*));
+  s_attribute_keys = (wchar_t**)forensics_alloc(s_config.max_attribute_count * sizeof(wchar_t*));
+  s_attribute_values = (wchar_t**)forensics_alloc(s_config.max_attribute_count * sizeof(wchar_t*));
   s_attribute_buf = (char*)forensics_alloc(s_config.attribute_buf_size_bytes);
   s_attribute_count = 0;
   s_attribute_buf_used = 0;
@@ -326,7 +324,7 @@ void forensics_shutdown() {
   s_report_id = nullptr;
 }
 
-void forensics_context_begin(const char* name) {
+void forensics_context_begin(const wchar_t* name) {
   context_buffer_t* ctx_buf = &s_tls_context_buf;
 
   // handle first-time initialization (per thread)
@@ -357,13 +355,13 @@ void forensics_context_end() {
 
   // check for underflow
   FORENSICS_ASSERTF(ctx_buf->count > 0,
-                    "The forensics context stack underflowed. Do you have mismatched "
-                    "forensics_context_begin/forensics_context_end calls?");
+                    L"The forensics context stack underflowed. Do you have mismatched "
+                    L"forensics_context_begin/forensics_context_end calls?");
 
   --ctx_buf->count;
 }
 
-void forensics_add_breadcrumb(const char* name, const char** meta_keys, const char** meta_values, int meta_count) {
+void forensics_add_breadcrumb(const wchar_t* name, const wchar_t** meta_keys, const wchar_t** meta_values, int meta_count) {
   // allow multi-threaded access to this function and protect against the crash handler
   std::lock_guard<std::mutex> lock(s_report_mutex);
 
@@ -378,14 +376,14 @@ void forensics_add_breadcrumb(const char* name, const char** meta_keys, const ch
         (s_breadcrumbs_index_next + s_config.max_breadcrumb_count - 1) % s_config.max_breadcrumb_count;
     forensics_breadcrumb_t* prev = &s_breadcrumbs[last_index].crumb;
     if (prev->meta_count == meta_count) {
-      if (!strcmp(prev->name, name)) {
+      if (!wcscmp(prev->name, name)) {
         bool match = true;
         for (int index = 0; index < meta_count; ++index) {
-          if (0 != strcmp(prev->meta_keys[index], meta_keys[index])) {
+          if (0 != wcscmp(prev->meta_keys[index], meta_keys[index])) {
             match = false;
             break;
           }
-          if (0 != strcmp(prev->meta_values[index], meta_values[index])) {
+          if (0 != wcscmp(prev->meta_values[index], meta_values[index])) {
             match = false;
             break;
           }
@@ -399,15 +397,15 @@ void forensics_add_breadcrumb(const char* name, const char** meta_keys, const ch
     }
   }
 
-  const int name_size_bytes = strlen(name) + 1;
+  const int name_size_bytes = (wcslen(name) + 1) * sizeof(wchar_t);
 
   // compute the required space in the ringbuffer
   unsigned int required_size = 0;
-  required_size += sizeof(char**) * meta_count * 2;
+  required_size += sizeof(wchar_t**) * meta_count * 2;
   required_size += name_size_bytes;
   for (int index = 0; index < meta_count; ++index) {
-    required_size += strlen(meta_keys[index]) + 1;
-    required_size += strlen(meta_values[index]) + 1;
+    required_size += (wcslen(meta_keys[index]) + 1) * sizeof(wchar_t);
+    required_size += (wcslen(meta_values[index]) + 1) * sizeof(wchar_t);
   }
 
   // remove a breadcrumb if there are too many
@@ -431,16 +429,16 @@ void forensics_add_breadcrumb(const char* name, const char** meta_keys, const ch
   }
 
   // copy the data into the ring buffer
-  char** out_meta_keys = (char**)alloc;
-  char** out_meta_values = (char**)(out_meta_keys + sizeof(char**) * meta_count);
-  char* out_name = (char*)(out_meta_values + sizeof(char**) * meta_count);
-  char* ptr = out_name + name_size_bytes;
+  wchar_t** out_meta_keys = (wchar_t**)alloc;
+  wchar_t** out_meta_values = (wchar_t**)(out_meta_keys + sizeof(wchar_t**) * meta_count);
+  wchar_t* out_name = (wchar_t*)(out_meta_values + sizeof(wchar_t**) * meta_count);
+  wchar_t* ptr = out_name + name_size_bytes;
   memmove(out_name, name, name_size_bytes);
   for (int index = 0; index < meta_count; ++index) {
-    const int key_size_bytes = strlen(meta_keys[index]) + 1;
-    const int value_size_bytes = strlen(meta_values[index]) + 1;
-    char* out_key = ptr;
-    char* out_value = out_key + key_size_bytes;
+    const int key_size_bytes = (wcslen(meta_keys[index]) + 1) * sizeof(wchar_t);
+    const int value_size_bytes = (wcslen(meta_values[index]) + 1) * sizeof(wchar_t);
+    wchar_t* out_key = ptr;
+    wchar_t* out_value = out_key + key_size_bytes;
     ptr = out_value + value_size_bytes;
 
     memmove(out_key, meta_keys[index], key_size_bytes);
@@ -454,8 +452,8 @@ void forensics_add_breadcrumb(const char* name, const char** meta_keys, const ch
   forensics_breadcrumb_t* crumb = &breadcrumb->crumb;
   crumb->name = out_name;
   if (meta_count > 0) {
-    crumb->meta_keys = (const char**)out_meta_keys;
-    crumb->meta_values = (const char**)out_meta_values;
+    crumb->meta_keys = (const wchar_t**)out_meta_keys;
+    crumb->meta_values = (const wchar_t**)out_meta_values;
   }
   else {
     crumb->meta_keys = nullptr;
@@ -468,7 +466,7 @@ void forensics_add_breadcrumb(const char* name, const char** meta_keys, const ch
   ++s_breadcrumbs_count;
 }
 
-void forensics_set_attribute(const char* key, const char* value) {
+void forensics_set_attribute(const wchar_t* key, const wchar_t* value) {
   // allow multi-threaded access to this function and protect against the crash handler
   std::lock_guard<std::mutex> lock(s_report_mutex);
 
@@ -493,32 +491,32 @@ void forensics_set_attribute(const char* key, const char* value) {
 }
 
 void forensics_default_report_handler(const forensics_report_t* report) {
-  const char* context = "<none>";
+  const wchar_t* context = L"<none>";
   if (report->context_count > 0) {
     context = report->context_stack[report->context_count - 1];
   }
 
-  fprintf(stderr, "ASSERTION FAILED\n");
-  fprintf(stderr, "expression: %s\n", report->expression);
-  fprintf(stderr, "context: %s\n", context);
-  fprintf(stderr, "file: %s\n", report->file);
-  fprintf(stderr, "line: %d\n", report->line);
-  fprintf(stderr, "function: %s\n", report->func);
-  fprintf(stderr, "id: %s\n", report->id);
-  fprintf(stderr, "backtrace:\n");
+  fwprintf(stderr, L"ASSERTION FAILED\n");
+  fwprintf(stderr, L"expression: %S\n", report->expression);
+  fwprintf(stderr, L"context: %s\n", context);
+  fwprintf(stderr, L"file: %S\n", report->file);
+  fwprintf(stderr, L"line: %d\n", report->line);
+  fwprintf(stderr, L"function: %S\n", report->func);
+  fwprintf(stderr, L"id: %s\n", report->id);
+  fwprintf(stderr, L"backtrace:\n");
   for (int index = 0; index < report->backtrace_count; ++index) {
-    fprintf(stderr, "  %p\n", report->backtrace[index]);
+    fwprintf(stderr, L"  %p\n", report->backtrace[index]);
   }
 }
 
-void forensics_report_assert_failure(const char* file, int line, const char* func, bool fatal, const char* expression, const char* format, ...) {
+void forensics_report_assert_failure(const char* file, int line, const char* func, bool fatal, const char* expression, const wchar_t* format, ...) {
   // grab the mutex so only one thread can crash at a time
   std::lock_guard<std::mutex> lock(s_report_mutex);
 
   // format the message
   va_list args;
   va_start(args, format);
-  vsnprintf(s_report_formatted_msg, s_config.max_formatted_message_size_bytes, format, args);
+  vswprintf(s_report_formatted_msg, s_config.max_formatted_message_size_bytes, format, args);
   s_report_formatted_msg[s_config.max_formatted_message_size_bytes - 1] = 0;
   va_end(args);
 
@@ -577,7 +575,7 @@ void forensics_report_assert_failure(const char* file, int line, const char* fun
   }
 
   // generate the report id
-  const char* context = report.context_count > 0 ? report.context_stack[report.context_count - 1] : "<none>";
+  const wchar_t* context = report.context_count > 0 ? report.context_stack[report.context_count - 1] : L"<none>";
   const char* file_basename = strrchr(file, '/');
   if (file_basename == nullptr) {
     file_basename = strrchr(file, '\\');
@@ -588,7 +586,7 @@ void forensics_report_assert_failure(const char* file, int line, const char* fun
   if (file_basename != file) {
     file_basename += 1;
   }
-  snprintf(s_report_id, s_config.max_id_size_bytes, "%s-%s-%s-%s", context, file_basename, func, format);
+  swprintf(s_report_id, s_config.max_id_size_bytes, L"%s-%S-%S-%s", context, file_basename, func, format);
   s_report_id[s_config.max_id_size_bytes - 1] = 0;
   report.id = s_report_id;
 
