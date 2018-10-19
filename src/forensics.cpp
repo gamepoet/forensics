@@ -88,8 +88,8 @@ static int attribute_find(const char* key) {
 static void attribute_clear(int index) {
   char* key = s_attribute_keys[index];
   char* value = s_attribute_values[index];
-  const int key_size_bytes = strlen(key) + 1;
-  const int value_size_bytes = strlen(value) + 1;
+  const int key_size_bytes = (int)strlen(key) + 1;
+  const int value_size_bytes = (int)strlen(value) + 1;
   const int size_bytes = key_size_bytes + value_size_bytes;
 
   // fill in the hole in the buffer
@@ -113,8 +113,8 @@ static void attribute_append(const char* key, const char* value) {
                     key,
                     value);
 
-  const int key_size_bytes = strlen(key) + 1;
-  const int value_size_bytes = strlen(value) + 1;
+  const int key_size_bytes = (int)strlen(key) + 1;
+  const int value_size_bytes = (int)strlen(value) + 1;
   const int size_bytes = key_size_bytes + value_size_bytes;
 
   const int avail = s_config.attribute_buf_size_bytes - s_attribute_buf_used;
@@ -399,15 +399,15 @@ void forensics_add_breadcrumb(const char* name, const char** meta_keys, const ch
     }
   }
 
-  const int name_size_bytes = strlen(name) + 1;
+  const int name_size_bytes = (int)strlen(name) + 1;
 
   // compute the required space in the ringbuffer
   unsigned int required_size = 0;
   required_size += sizeof(char**) * meta_count * 2;
   required_size += name_size_bytes;
   for (int index = 0; index < meta_count; ++index) {
-    required_size += strlen(meta_keys[index]) + 1;
-    required_size += strlen(meta_values[index]) + 1;
+    required_size += (int)strlen(meta_keys[index]) + 1;
+    required_size += (int)strlen(meta_values[index]) + 1;
   }
 
   // remove a breadcrumb if there are too many
@@ -437,8 +437,8 @@ void forensics_add_breadcrumb(const char* name, const char** meta_keys, const ch
   char* ptr = out_name + name_size_bytes;
   memmove(out_name, name, name_size_bytes);
   for (int index = 0; index < meta_count; ++index) {
-    const int key_size_bytes = strlen(meta_keys[index]) + 1;
-    const int value_size_bytes = strlen(meta_values[index]) + 1;
+    const int key_size_bytes = (int)strlen(meta_keys[index]) + 1;
+    const int value_size_bytes = (int)strlen(meta_values[index]) + 1;
     char* out_key = ptr;
     char* out_value = out_key + key_size_bytes;
     ptr = out_value + value_size_bytes;
