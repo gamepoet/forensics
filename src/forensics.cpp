@@ -261,7 +261,7 @@ void forensics_config_init(forensics_config_t* config) {
   }
 }
 
-void forensics_init(const forensics_config_t* config) {
+void forensics_lib_init(const forensics_config_t* config) {
   if (config) {
     s_config = *config;
   }
@@ -292,7 +292,7 @@ void forensics_init(const forensics_config_t* config) {
   s_backtrace_buf = (void**)forensics_alloc(s_config.max_backtrace_count * sizeof(void*));
 }
 
-void forensics_shutdown() {
+void forensics_lib_shutdown() {
   // free the allocated thread context buffers
   while (s_context_buf_list != nullptr) {
     context_buffer_destroy(s_context_buf_list);

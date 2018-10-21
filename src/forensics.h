@@ -97,10 +97,10 @@ void forensics_config_init(forensics_config_t* config);
 // Initializes this library with the given configuration. If NULL is given, then the default configuration will be used.
 // This will allocate the buffers required to do all error handling and reporting except for a context stack buffer that
 // is allocated for each thread that chooses to push on a context with `forensics_context_begin()`.
-void forensics_init(const forensics_config_t* config);
+void forensics_lib_init(const forensics_config_t* config);
 
 // Tears down this library and frees all allocations.
-void forensics_shutdown();
+void forensics_lib_shutdown();
 
 // Pushes on a new context with the given name for the current thread. If the current thread generates an error report,
 // this context will on the contexxt stack made available in the report data. It is expected that when the code leaves

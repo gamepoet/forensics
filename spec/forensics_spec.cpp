@@ -21,10 +21,10 @@ struct init_t {
       config_default.fatal_should_halt = false;
       config = &config_default;
     }
-    forensics_init(config);
+    forensics_lib_init(config);
   }
   ~init_t() {
-    forensics_shutdown();
+    forensics_lib_shutdown();
   }
 };
 
