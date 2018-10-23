@@ -4,6 +4,7 @@
 #include <thread>
 #include "forensics.h"
 #include "backtrace.h"
+#include "signals.h"
 
 #define DEFAULT_MAX_CONTEXT_DEPTH 128
 #define DEFAULT_MAX_FORMATTED_MESSAGE_SIZE_BYTES (1 * 1024)
@@ -246,6 +247,7 @@ context_buffer_t::~context_buffer_t() {
 void forensics_config_init(forensics_config_t* config) {
   if (config != nullptr) {
     config->fatal_should_halt = true;
+    config->register_signal_handlers = true;
     config->max_id_size_bytes = DEFAULT_MAX_ID_SIZE_BYTES;
     config->max_context_depth = DEFAULT_MAX_CONTEXT_DEPTH;
     config->max_formatted_message_size_bytes = DEFAULT_MAX_FORMATTED_MESSAGE_SIZE_BYTES;
@@ -290,9 +292,13 @@ void forensics_lib_init(const forensics_config_t* config) {
   s_breadcrumbs_buf_write_index = 0;
 
   s_backtrace_buf = (void**)forensics_alloc(s_config.max_backtrace_count * sizeof(void*));
+
+  forensics_private_register_signal_handlers();
 }
 
 void forensics_lib_shutdown() {
+  forensics_private_unregister_signal_handlers();
+
   // free the allocated thread context buffers
   while (s_context_buf_list != nullptr) {
     context_buffer_destroy(s_context_buf_list);
@@ -508,6 +514,79 @@ void forensics_default_report_handler(const forensics_report_t* report) {
   fprintf(stderr, "backtrace:\n");
   for (int index = 0; index < report->backtrace_count; ++index) {
     fprintf(stderr, "  %p\n", report->backtrace[index]);
+  }
+}
+
+void forensics_report_crash(const char* message) {
+  // grab the mutex so only one thread can crash at a time
+  std::lock_guard<std::mutex> lock(s_report_mutex);
+
+  // build the report
+  forensics_report_t report;
+  report.file = "";
+  report.line = 0;
+  report.func = "";
+  report.expression = "";
+  report.format = message;
+  report.formatted = message;
+  report.fatal = true;
+
+  // grab the context stack
+  context_buffer_t* ctx_buf = &s_tls_context_buf;
+  if (ctx_buf->count > 0) {
+    report.context_stack = ctx_buf->stack;
+  }
+  else {
+    report.context_stack = nullptr;
+  }
+  report.context_count = ctx_buf->count;
+
+  // gather the attributes
+  report.attribute_count = s_attribute_count;
+  if (s_attribute_count > 0) {
+    report.attribute_keys = s_attribute_keys;
+    report.attribute_values = s_attribute_values;
+  }
+  else {
+    report.attribute_keys = nullptr;
+    report.attribute_values = nullptr;
+  }
+
+  // gather the breadcrumbs
+  report.breadcrumb_count = s_breadcrumbs_count;
+  if (s_breadcrumbs_count > 0) {
+    report.breadcrumbs = s_report_breadcrumbs;
+    for (unsigned int index = 0; index < s_breadcrumbs_count; ++index) {
+      const int src_index = (s_breadcrumbs_index_next + s_config.max_breadcrumb_count - s_breadcrumbs_count + index) %
+                            s_config.max_breadcrumb_count;
+      s_report_breadcrumbs[index] = s_breadcrumbs[src_index].crumb;
+    }
+  }
+  else {
+    report.breadcrumbs = nullptr;
+  }
+
+  // capture the backtrace
+  report.backtrace_count = forensics_private_backtrace(s_backtrace_buf, s_config.max_backtrace_count);
+  if (report.backtrace_count > 0) {
+    report.backtrace = s_backtrace_buf;
+  }
+  else {
+    report.backtrace = nullptr;
+  }
+
+  // generate the report id
+  const char* context = report.context_count > 0 ? report.context_stack[report.context_count - 1] : "<none>";
+  snprintf(s_report_id, s_config.max_id_size_bytes, "%s-crash-%s", context, message);
+  s_report_id[s_config.max_id_size_bytes - 1] = 0;
+  report.id = s_report_id;
+
+  // call the report handler
+  s_config.report_handler(&report);
+
+  // halting?
+  if (s_config.fatal_should_halt) {
+    panic();
   }
 }
 

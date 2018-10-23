@@ -6,12 +6,14 @@ set(
   src/backtrace.h
   src/forensics.h
   src/forensics.cpp
+  src/signals.h
 )
 if(APPLE)
   set(
     SRCS
     ${SRCS}
     src/backtrace_osx.cpp
+    src/signals_osx.c
   )
 endif()
 if(WIN32)
@@ -19,6 +21,7 @@ if(WIN32)
     SRCS
     ${SRCS}
     src/backtrace_windows.cpp
+    src/signals_windows.c
   )
 endif()
 

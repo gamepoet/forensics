@@ -1,3 +1,4 @@
+#include <signal.h>
 #include "catch.hpp"
 #include "forensics.h"
 
@@ -478,3 +479,65 @@ TEST_CASE("breadcrumb buf overflow") {
     });
   }
 }
+
+void test_signal_handler(int sig, const char* signal_name, std::function<void()> func) {
+  char expected_message[64];
+  snprintf(expected_message, sizeof(expected_message), "got signal: %s", signal_name);
+  expected_message[sizeof(expected_message) - 1] = 0;
+
+  auto handler = [&expected_message](const forensics_report_t* report) {
+    CHECK(!strcmp(report->file, ""));
+    CHECK(report->line == 0);
+    CHECK(!strcmp(report->formatted, expected_message));
+    throw std::runtime_error("got signal");
+  };
+  with_handler(handler, [&func]() {
+    CHECK_THROWS_WITH(func(), "got signal");
+  });
+}
+
+#ifdef __APPLE__
+  TEST_CASE("signals") {
+    forensics_config_t config;
+    forensics_config_init(&config);
+    config.report_handler = &test_report_handler;
+    config.fatal_should_halt = false;
+    init_t init(&config);
+
+    // NOTE: This one I can't figure out a way to recover from
+    // SECTION("SIGABRT") {
+    //   test_signal_handler(SIGABRT, "SIGABRT", []() {
+    //     abort();
+    //   });
+    // }
+
+    // NOTE: This one I can't figure out a way to recover from
+    // SECTION("SIGBUS") {
+    //   test_signal_handler(SIGBUS, "SIGBUS", []() {
+    //     raise(SIGBUS);
+    //   });
+    // }
+
+    SECTION("SIGFPE") {
+      test_signal_handler(SIGFPE, "SIGFPE", []() {
+        int a = 1;
+        int b = 0;
+        int c = a / b;
+      });
+    }
+
+    // NOTE: This one I can't figure out a way to recover from
+    // SECTION("SIGILL") {
+    //   test_signal_handler(SIGILL, "SIGILL", []() {
+    //     raise(SIGILL);
+    //   });
+    // }
+
+    SECTION("SIGSEGV") {
+      test_signal_handler(SIGSEGV, "SIGSEGV", []() {
+        int* ptr = (int*)0x00000000;
+        *ptr = 0;
+      });
+    }
+  }
+#endif // __APPLE__

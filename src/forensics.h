@@ -50,6 +50,9 @@ typedef struct forensics_config_t {
   // if you are running tests.
   bool fatal_should_halt;
 
+  // Should signal handlers be registered?
+  bool register_signal_handlers;
+
   // The maximum byte size for a report id string (including null terminator).
   unsigned int max_id_size_bytes;
 
@@ -140,6 +143,10 @@ void forensics_default_report_handler(const forensics_report_t* report);
 // Reports an assertion failure error. This will capture the backtrace and generate a report which will be given to the
 // configured report handler to process.
 void forensics_report_assert_failure(const char* file, int line, const char* func, bool fatal, const char* expression, const char* format, ...);
+
+// Reports a general crash. This will capture the backtrace and generate a report which will be given to the configured
+// report handler to process.
+void forensics_report_crash(const char* message);
 
 // A fatal assertion with no message.
 #define FORENSICS_ASSERT(expr) ((expr) ? true : (forensics_report_assert_failure(__FILE__, __LINE__, __func__, true, #expr, ""), false))
