@@ -485,7 +485,7 @@ void test_signal_handler(int sig, const char* signal_name, std::function<void()>
   snprintf(expected_message, sizeof(expected_message), "got signal: %s", signal_name);
   expected_message[sizeof(expected_message) - 1] = 0;
 
-  auto handler = [=](const forensics_report_t* report) {
+  auto handler = [&expected_message](const forensics_report_t* report) {
     CHECK(!strcmp(report->file, ""));
     CHECK(report->line == 0);
     CHECK(!strcmp(report->formatted, expected_message));
