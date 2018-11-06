@@ -16,7 +16,7 @@ before_build:
 - cmd: |-
     mkdir build
     cd build
-    cmake .. -G %GENERATOR%
+    cmake .. -G %GENERATOR% -D FORENSICS_BUILD_TESTS=ON
 build:
   project: build\forensics.sln
   verbosity: minimal
