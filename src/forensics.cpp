@@ -171,6 +171,9 @@ static void breadcrumb_deque() {
   s_breadcrumbs_buf_read_index += breadcrumb->buf_size;
   if (s_breadcrumbs_buf_read_index >= s_config.breadcrumb_buf_size_bytes) {
     s_breadcrumbs_buf_read_index = 0;
+    if (s_breadcrumbs_buf_write_index >= s_config.breadcrumb_buf_size_bytes) {
+      s_breadcrumbs_buf_write_index = 0;
+    }
   }
 
   // clear out the breadcrumb struct
@@ -438,8 +441,8 @@ void forensics_add_breadcrumb(const char* name, const char** meta_keys, const ch
 
   // copy the data into the ring buffer
   char** out_meta_keys = (char**)alloc;
-  char** out_meta_values = (char**)(out_meta_keys + sizeof(char**) * meta_count);
-  char* out_name = (char*)(out_meta_values + sizeof(char**) * meta_count);
+  char** out_meta_values = (char**)(out_meta_keys + meta_count);
+  char* out_name = (char*)(out_meta_values + meta_count);
   char* ptr = out_name + name_size_bytes;
   memmove(out_name, name, name_size_bytes);
   for (int index = 0; index < meta_count; ++index) {

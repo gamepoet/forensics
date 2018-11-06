@@ -480,6 +480,30 @@ TEST_CASE("breadcrumb buf overflow") {
   }
 }
 
+// In response to issue https://github.com/gamepoet/forensics/issues/3
+TEST_CASE("breadcrumb buf overflow for exact size of ring buffer") {
+  forensics_config_t config;
+  forensics_config_init(&config);
+  config.breadcrumb_buf_size_bytes = 8;
+  config.report_handler = &test_report_handler;
+  config.fatal_should_halt = false;
+  init_t init(&config);
+
+  SECTION("buffer fills; throw out old breadcrumbs") {
+    auto handler = [=](const forensics_report_t* report) {
+      CHECK(report->breadcrumb_count == 1);
+      CHECK(!strcmp(report->breadcrumbs[0].name, "four"));
+    };
+    with_handler(handler, []() {
+      forensics_add_breadcrumb("one", nullptr, nullptr, 0);
+      forensics_add_breadcrumb("two", nullptr, nullptr, 0);
+      forensics_add_breadcrumb("three", nullptr, nullptr, 0);
+      forensics_add_breadcrumb("four", nullptr, nullptr, 0);
+      FORENSICS_ASSERT(false);
+    });
+  }
+}
+
 void test_signal_handler(int sig, const char* signal_name, std::function<void()> func) {
   char expected_message[64];
   snprintf(expected_message, sizeof(expected_message), "got signal: %s", signal_name);
@@ -497,47 +521,47 @@ void test_signal_handler(int sig, const char* signal_name, std::function<void()>
 }
 
 #ifdef __APPLE__
-  TEST_CASE("signals") {
-    forensics_config_t config;
-    forensics_config_init(&config);
-    config.report_handler = &test_report_handler;
-    config.fatal_should_halt = false;
-    init_t init(&config);
+TEST_CASE("signals") {
+  forensics_config_t config;
+  forensics_config_init(&config);
+  config.report_handler = &test_report_handler;
+  config.fatal_should_halt = false;
+  init_t init(&config);
 
-    // NOTE: This one I can't figure out a way to recover from
-    // SECTION("SIGABRT") {
-    //   test_signal_handler(SIGABRT, "SIGABRT", []() {
-    //     abort();
-    //   });
-    // }
+  // NOTE: This one I can't figure out a way to recover from
+  // SECTION("SIGABRT") {
+  //   test_signal_handler(SIGABRT, "SIGABRT", []() {
+  //     abort();
+  //   });
+  // }
 
-    // NOTE: This one I can't figure out a way to recover from
-    // SECTION("SIGBUS") {
-    //   test_signal_handler(SIGBUS, "SIGBUS", []() {
-    //     raise(SIGBUS);
-    //   });
-    // }
+  // NOTE: This one I can't figure out a way to recover from
+  // SECTION("SIGBUS") {
+  //   test_signal_handler(SIGBUS, "SIGBUS", []() {
+  //     raise(SIGBUS);
+  //   });
+  // }
 
-    SECTION("SIGFPE") {
-      test_signal_handler(SIGFPE, "SIGFPE", []() {
-        int a = 1;
-        int b = 0;
-        int c = a / b;
-      });
-    }
-
-    // NOTE: This one I can't figure out a way to recover from
-    // SECTION("SIGILL") {
-    //   test_signal_handler(SIGILL, "SIGILL", []() {
-    //     raise(SIGILL);
-    //   });
-    // }
-
-    SECTION("SIGSEGV") {
-      test_signal_handler(SIGSEGV, "SIGSEGV", []() {
-        int* ptr = (int*)0x00000000;
-        *ptr = 0;
-      });
-    }
+  SECTION("SIGFPE") {
+    test_signal_handler(SIGFPE, "SIGFPE", []() {
+      int a = 1;
+      int b = 0;
+      int c = a / b;
+    });
   }
+
+  // NOTE: This one I can't figure out a way to recover from
+  // SECTION("SIGILL") {
+  //   test_signal_handler(SIGILL, "SIGILL", []() {
+  //     raise(SIGILL);
+  //   });
+  // }
+
+  SECTION("SIGSEGV") {
+    test_signal_handler(SIGSEGV, "SIGSEGV", []() {
+      int* ptr = (int*)0x00000000;
+      *ptr = 0;
+    });
+  }
+}
 #endif // __APPLE__
