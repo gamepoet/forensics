@@ -16,4 +16,4 @@ script:
   - s/build
   - s/test
 after_success:
-  - coveralls --build-root build -gcov-options '\-lp' -e build -e spec
+  - coveralls --build-root build --gcov-options '\-lp' -e build -e spec
