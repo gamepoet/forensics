@@ -4,13 +4,7 @@ os: osx
 osx_image: xcode10.1
 
 before_install:
-  - brew update
-  - eval "$(pyenv init -)"
-  - pyenv install 2.7.6
-  - pyenv global 2.7.6
-  - pyenv rehash
   - pip install cpp-coveralls
-  - pyenv rehash
 script:
   - s/setup -D FORENSICS_COVERAGE=ON
   - s/build
