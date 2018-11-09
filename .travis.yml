@@ -3,7 +3,18 @@ sudo: false
 os: osx
 osx_image: xcode9.3
 
+before_install:
+  - brew update
+  - brew install pyenv
+  - eval "$(pyenv init -)"
+  - pyenv install 2.7.6
+  - pyenv global 2.7.6
+  - pyenv rehash
+  - pip install cpp-coveralls
+  - pyenv rehash
 script:
-  - s/setup
+  - s/setup -D FORENSICS_COVERAGE=ON
   - s/build
   - s/test
+after_success:
+  - coveralls --build-root build -gcov-options '\-lp' -e build -e spec
