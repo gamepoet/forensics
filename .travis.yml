@@ -11,4 +11,4 @@ script:
   - s/test
 after_success:
   - cd ${TRAVIS_BUILD_DIR}
-  - coveralls --build-root build --gcov-options '\-lp' -e spec -e build/CMakeFiles -e build/CMakeFiles/feature_tests.c -e build/CMakeFiles/feature_tests.cxx -E build/CMakeFiles/\\d.*
+  - coveralls --build-root build --gcov-options '\-lp' -e spec -e build/CMakeFiles/feature_tests.c -e build/CMakeFiles/feature_tests.cxx -E build/CMakeFiles/\\d.*
