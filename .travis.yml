@@ -16,4 +16,5 @@ script:
   - s/build
   - s/test
 after_success:
+  - cd ${TRAVIS_BUILD_DIR}
   - coveralls --build-root build --gcov-options '\-lp' -e build -e spec
