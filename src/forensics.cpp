@@ -61,20 +61,23 @@ static void panic() {
   exit(EXIT_FAILURE);
 }
 
-static void* default_alloc(uintptr_t size, void* user_data) {
+static void* default_alloc(uintptr_t size, void* user_data, const char* file, int line, const char* func) {
   return malloc(size);
 }
 
-static void default_free(void* memory, void* user_data) {
+static void default_free(void* memory, void* user_data, const char* file, int line, const char* func) {
   free(memory);
 }
 
-static void* forensics_alloc(uintptr_t size) {
-  return s_config.alloc(size, s_config.alloc_user_data);
+#define forensics_alloc(size) forensics_alloc_ex(size, __FILE__, __LINE__, __func__)
+#define forensics_free(ptr) forensics_free_ex(ptr, __FILE__, __LINE__, __func__)
+
+static void* forensics_alloc_ex(uintptr_t size, const char* file, int line, const char* func) {
+  return s_config.alloc(size, s_config.alloc_user_data, file, line, func);
 }
 
-static void forensics_free(void* memory) {
-  s_config.free(memory, s_config.alloc_user_data);
+static void forensics_free_ex(void* memory, const char* file, int line, const char* func) {
+  s_config.free(memory, s_config.alloc_user_data, file, line, func);
 }
 
 static int attribute_find(const char* key) {

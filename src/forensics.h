@@ -42,8 +42,8 @@ typedef struct forensics_report_t {
 
 typedef void (*forensics_report_handler_t)(const forensics_report_t* report);
 
-typedef void* (*forensics_alloc_t)(uintptr_t size, void* user_data);
-typedef void (*forensics_free_t)(void* memory, void* user_data);
+typedef void* (*forensics_alloc_t)(size_t size, void* user_data, const char* file, int line, const char* func);
+typedef void (*forensics_free_t)(void* memory, void* user_data, const char* file, int line, const char* func);
 
 typedef struct forensics_config_t {
   // Fatal assertions should halt. Set to false if you don't actually want fatal assertions to halt. This can be useful
@@ -87,7 +87,7 @@ typedef struct forensics_config_t {
   forensics_alloc_t alloc;
 
   // Function used to free memory allocated by `alloc()`. This has the same thread-safety requirements as `alloc`. The
-  // default free function is plaid-old `free()`.
+  // default free function is plain-old `free()`.
   forensics_free_t free;
 
   // Arbirtary user data that will be passed through to the `alloc()` and `free()` functions.
