@@ -212,7 +212,7 @@ static void context_buffer_init(context_buffer_t* ctx_buf) {
     ctx_buf->next = s_context_buf_list;
     s_context_buf_list = ctx_buf;
     if (ctx_buf->next != nullptr) {
-      ctx_buf->prev = ctx_buf;
+      ctx_buf->next->prev = ctx_buf;
     }
   }
 }
