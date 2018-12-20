@@ -1,5 +1,4 @@
 language: cpp
-sudo: false
 os: osx
 osx_image: xcode10.1
 
