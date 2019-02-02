@@ -3,11 +3,23 @@
 #include <stddef.h>
 
 #ifdef __cplusplus
-extern "C" {
+#define FORENSICS_DEF extern "C"
+#else
+#define FORENSICS_DEF
+#endif
+
+#if defined(_WIN32) || defined(_WIN64)
+#ifdef FORENSICS_IN_DLL
+#define FORENSICS_DECL FORENSICS_DEF __declspec(dllexport)
+#else
+#define FORENSICS_DECL FORENSICS_DEF __declspec(dllimport)
+#endif
+#else
+#define FORENSICS_DECL FORENSICS_DEF
 #endif
 
 // Contains information about a single breadcrumb in a report.
-typedef struct forensics_breadcrumb_t {
+FORENSICS_DECL typedef struct forensics_breadcrumb_t {
   const char* name;         // the name of this breadcrumb
   const char** meta_keys;   // array of metadata key strings
   const char** meta_values; // array of metadata value strings
@@ -16,7 +28,7 @@ typedef struct forensics_breadcrumb_t {
 } forensics_breadcrumb_t;
 
 // All the information available in an error report.
-typedef struct forensics_report_t {
+FORENSICS_DECL typedef struct forensics_report_t {
   const char* id;         // A agrregation id (or fingerprint) for this report: "CONTEXT-FILE_BASENAME-FUNC-MSG_FORMAT_STRING"
   const char* file;       // The source file where the assertion occurred.
   int line;               // The source line where the assertion occurred.
@@ -40,12 +52,12 @@ typedef struct forensics_report_t {
   int backtrace_count;          // The number of frames in the backtrace.
 } forensics_report_t;
 
-typedef void (*forensics_report_handler_t)(const forensics_report_t* report);
+FORENSICS_DECL typedef void (*forensics_report_handler_t)(const forensics_report_t* report);
 
-typedef void* (*forensics_alloc_t)(size_t size, void* user_data, const char* file, int line, const char* func);
-typedef void (*forensics_free_t)(void* memory, void* user_data, const char* file, int line, const char* func);
+FORENSICS_DECL typedef void* (*forensics_alloc_t)(size_t size, void* user_data, const char* file, int line, const char* func);
+FORENSICS_DECL typedef void (*forensics_free_t)(void* memory, void* user_data, const char* file, int line, const char* func);
 
-typedef struct forensics_config_t {
+FORENSICS_DECL typedef struct forensics_config_t {
   // Fatal assertions should halt. Set to false if you don't actually want fatal assertions to halt. This can be useful
   // if you are running tests.
   bool fatal_should_halt;
@@ -95,15 +107,15 @@ typedef struct forensics_config_t {
 } forensics_config_t;
 
 // Initializes the given config struct to fill in the default values.
-void forensics_config_init(forensics_config_t* config);
+FORENSICS_DECL void forensics_config_init(forensics_config_t* config);
 
 // Initializes this library with the given configuration. If NULL is given, then the default configuration will be used.
 // This will allocate the buffers required to do all error handling and reporting except for a context stack buffer that
 // is allocated for each thread that chooses to push on a context with `forensics_context_begin()`.
-void forensics_lib_init(const forensics_config_t* config);
+FORENSICS_DECL void forensics_lib_init(const forensics_config_t* config);
 
 // Tears down this library and frees all allocations.
-void forensics_lib_shutdown();
+FORENSICS_DECL void forensics_lib_shutdown();
 
 // Pushes on a new context with the given name for the current thread. If the current thread generates an error report,
 // this context will on the contexxt stack made available in the report data. It is expected that when the code leaves
@@ -113,11 +125,11 @@ void forensics_lib_shutdown();
 // common pattern is to assert on the arguments to a library's public API functions and then assume ownership of any
 // further errors by establishing itself as the current context.
 //
-// The name is copied into a thread-local buffer and does not need to live for the duration of the context.
-void forensics_context_begin(const char* name);
+// The name pointer is copied into a thread-local buffer and it's memory must live for the duration of the context.
+FORENSICS_DECL void forensics_context_begin(const char* name);
 
 // Pops a context off the stack for the current thread.
-void forensics_context_end();
+FORENSICS_DECL void forensics_context_end();
 
 // Adds a breadcrumb to the queue of breadcrumbs that have been left behind. This is basically a way to track
 // application evetns or state changes that have lead up to an error. Breadcrumbs are stored in a ring buffer, so you do
@@ -128,25 +140,25 @@ void forensics_context_end();
 // The name and metadata key/value pairs are copied into a buffer and do not need to persist once the call returns. If
 // the same breadcrumb is left sequentially, the subsequent breadcrumbs are coallesced into the first and do not take
 // any additional space.
-void forensics_add_breadcrumb(const char* name, const char** meta_keys, const char** meta_values, int meta_count);
+FORENSICS_DECL void forensics_add_breadcrumb(const char* name, const char** meta_keys, const char** meta_values, int meta_count);
 
 // Sets an arbitrary attribute as a key/value pair that will be made available to error reports. Setting the value to
 // NULL will remove the attribute. You can use this to set arbitrary data that you feel would be useful like a build id,
 // platform name, runtime environment, etc.
 //
 // The key and value are copied into a buffer and do not need to persist once the call returns.
-void forensics_set_attribute(const char* key, const char* value);
+FORENSICS_DECL void forensics_set_attribute(const char* key, const char* value);
 
 // The default report handler. It simply prints report information to stderr.
-void forensics_default_report_handler(const forensics_report_t* report);
+FORENSICS_DECL void forensics_default_report_handler(const forensics_report_t* report);
 
 // Reports an assertion failure error. This will capture the backtrace and generate a report which will be given to the
 // configured report handler to process.
-void forensics_report_assert_failure(const char* file, int line, const char* func, bool fatal, const char* expression, const char* format, ...);
+FORENSICS_DECL void forensics_report_assert_failure(const char* file, int line, const char* func, bool fatal, const char* expression, const char* format, ...);
 
 // Reports a general crash. This will capture the backtrace and generate a report which will be given to the configured
 // report handler to process.
-void forensics_report_crash(const char* message);
+FORENSICS_DECL void forensics_report_crash(const char* message);
 
 // A fatal assertion with no message.
 #define FORENSICS_ASSERT(expr) ((expr) ? true : (forensics_report_assert_failure(__FILE__, __LINE__, __func__, true, #expr, ""), false))
@@ -181,7 +193,7 @@ void forensics_report_crash(const char* message);
 #define FORENSICS_CONTEXT(name) forensics_context_t FORENSICS_CONTEXT_CONCAT(forensics_context__, __LINE__)(name)
 
 // C++ RAII implementation of an error context that will automatically end the context at the end of the current scope.
-typedef struct forensics_context_t {
+FORENSICS_DECL typedef struct forensics_context_t {
   inline forensics_context_t(const char* name) {
     forensics_context_begin(name);
   }
@@ -189,8 +201,5 @@ typedef struct forensics_context_t {
     forensics_context_end();
   }
 } forensics_context_t;
-#endif // __cplusplus
 
-#ifdef __cplusplus
-}
-#endif
+#endif // __cplusplus

@@ -30,6 +30,11 @@ target_compile_features(
   PUBLIC
   cxx_variadic_macros
 )
+target_compile_definitions(
+  forensics
+  PRIVATE
+  FORENSICS_IN_DLL
+)
 target_include_directories(
   forensics
   PUBLIC
