@@ -108,6 +108,20 @@ TEST_CASE("basic report handling") {
   }
 }
 
+TEST_CASE("sugar") {
+  init_t init(nullptr);
+
+  SECTION("it provides is-not-null sugar") {
+    auto handler = [=](const forensics_report_t* report) {
+      CHECK(!strcmp(report->format, "arg cannot be NULL"));
+    };
+    with_handler(handler, []() {
+      int* arg = NULL;
+      FORENSICS_ASSERT_IS_NOT_NULL(arg);
+    });
+  }
+}
+
 TEST_CASE("attributes") {
   init_t init(nullptr);
 

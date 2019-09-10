@@ -172,6 +172,12 @@ void forensics_report_crash(const char* message);
 #define FORENSICS_ASSERT_DBGF(expr, ...) ((expr) ? true : (forensics_report_assert_failure(__FILE__, __LINE__, __func__, true, #expr, __VA_ARGS__), false))
 #endif // NDEBUG
 
+// Version of FORENSICS_ASSERT for asserting that a variable is not null.
+#define FORENSICS_ASSERT_IS_NOT_NULL(var) FORENSICS_ASSERTF((var) != NULL, #var " cannot be NULL")
+
+// Version of FORENSICS_ASSERT_DBG for asserting that a variable is not null.
+#define FORENSICS_ASSERT_IS_NOT_NULL_DBG(var) FORENSICS_ASSERT_DBGF((var) != NULL, #var " cannot be NULL")
+
 #ifdef __cplusplus
 
 #define FORENSICS_CONTEXT_CONCAT2(a, b) a##b
